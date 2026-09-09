@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B1 Drag Board</title>
+<script src="http://localhost:47478/grist-plugin-api.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b1020; color: #eef2ff; font-family: -apple-system, "Segoe UI", sans-serif; }
+  #wrap { display: flex; height: 100vh; gap: 12px; padding: 14px 16px; box-sizing: border-box; }
+  #pool { flex: 0 0 200px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 12px; padding: 12px; overflow-y: auto; }
+  #buckets { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  h2 { margin: 0 0 4px; font-size: 12px; letter-spacing: 1.6px; color: #9aa4c7; }
+  #sub { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+  .bucket { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 12px; padding: 12px; overflow-y: auto; transition: border-color .15s, background .15s; }
+  .bucket.over { border-color: #22d3ee; background: rgba(34,211,238,.08); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: #1c2440; border: 1px solid #38406b;
+    border-radius: 14px; padding: 4px 6px 4px 12px; margin: 3px; font-size: 13px; cursor: grab; }
+  .bucket .chip { background: #12352a; border-color: #1f6b4d; cursor: default; }
+  .chip .x { cursor: pointer; background: rgba(255,255,255,.12); border: none; color: #fff; border-radius: 50%;
+    width: 18px; height: 18px; font-size: 11px; line-height: 1; }
+  #pool .chip.sel { border-color: #fbbf24; background: rgba(251,191,36,.16); font-weight: 700; }
+  .bucket.clickable { cursor: pointer; }
+  #dbg { position: fixed; bottom: 8px; right: 12px; font-size: 10px; color: #6e7681; font-family: monospace; text-align: right; }
+  #status { position: fixed; bottom: 8px; left: 16px; font-size: 11px; color: #9aa4c7; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="pool"><h2>SUBMISSION</h2><div id="sub">—</div><div id="chips"></div></div>
+  <div id="buckets"></div>
+</div>
+<div id="status">Connecting…</div>
+<div id="dbg">boot</div>
+<script>
+  var V = function(v){ return (Array.isArray(v) ? v[v.length-1] : v); };
+  function rowsOf(t){ t=t||{}; var out=[], n=(t.id||[]).length;
+    for (var i=0;i<n;i++){ var r={id:t.id[i]}; Object.keys(t).forEach(function(c){ if(c!=='id')r[c]=t[c][i]; }); out.push(r); } return out; }
+  var state = { sub: null, comms: {}, commsByName: {}, topics: [], topicByName: {}, answers: [], pendingCid: null };
+  var dragCid = null; // same-document payload (dataTransfer is unreliable in sandboxed iframes)
+  var refreshSeq = 0; // ignore out-of-order refresh responses
+  function dbg(m){ try { document.getElementById('dbg').textContent = new Date().toLocaleTimeString() + ' ' + m; } catch(e){} }
+  function normId(v){ v=V(v); return Array.isArray(v)?v[v.length-1]:v; }
+  // onRecord may give RefList as rowIds ([2,3]) OR display Names (["B","C"])
+  // depending on visibleCol mapping, so resolve both to numeric ids.
+  function buildLookups(comRows, topicRows){
+    var c={}, byName={};
+    (comRows||[]).forEach(function(r){ var nm=V(r.Name); c[r.id]=nm; if(nm!==null&&nm!==undefined) byName[String(nm).trim().toLowerCase()]=r.id; });
+    state.comms=c; state.commsByName=byName;
+    var tb={};
+    (topicRows||[]).forEach(function(r){ var nm=V(r.Name); if(nm!==null&&nm!==undefined) tb[String(nm).trim().toLowerCase()]=r.id; });
+    state.topicByName=tb;
+  }
+  function resolveCid(v){
+    v=V(v); if(Array.isArray(v)) v=v[v.length-1];
+    if(v===null||v===undefined||v==='') return null;
+    var n=Number(v);
+    if(isFinite(n) && n>0 && state.comms[n]) return n;
+    var key=String(v).trim().toLowerCase();
+    if(key in state.commsByName) return state.commsByName[key];
+    if(isFinite(n) && n>0 && n!==0) return Math.trunc(n);
+    return null;
+  }
+  function resolveTid(v){
+    v=V(v); if(Array.isArray(v)) v=v[v.length-1];
+    if(v===null||v===undefined||v==='') return null;
+    var n=Number(v);
+    if(isFinite(n) && n>0) return Math.trunc(n);
+    var key=String(v).trim().toLowerCase();
+    if(key in state.topicByName) return state.topicByName[key];
+    return null;
+  }
+  // Reference Lists arrive L-encoded (["L", 1, 2, ...]); check BEFORE unwrapping.
+  function asList(v){ if (v===null||v===undefined) return [];
+    if (Array.isArray(v)) return ((v[0]==='L') ? v.slice(1) : v).map(normId);
+    return [normId(v)]; }
+
+  function render(){
+    var st = document.getElementById('status');
+    try {
+    if (!state.sub){ document.getElementById('sub').textContent='Select a submission →'; return; }
+    var s = state.sub;
+    document.getElementById('sub').textContent = V(s.Name);
+    var inScope = {};
+    asList(s.Communities).forEach(function(c){
+      var id = resolveCid(c);
+      if(id!==null) inScope[id]=1;
+    });
+    var mine = state.answers.filter(function(a){ return normId(a.Submission)===s.id; });
+    var used = {};
+    mine.forEach(function(a){ var k=normId(a.Topic)+':'+normId(a.Community); used[k]=a.id; });
+    document.getElementById('chips').innerHTML = Object.keys(inScope).map(function(cid){
+      var sel = state.pendingCid!==null && String(state.pendingCid)===String(cid);
+      return '<span class="chip'+(sel?' sel':'')+'" draggable="true" data-cid="'+cid+'">'+(state.comms[cid]||('#'+cid))+'</span>'; }).join('')
+      || '<small style="color:#9aa4c7">no communities</small>';
+    document.getElementById('buckets').innerHTML = state.topics.map(function(t){
+      var inBucket = mine.filter(function(a){ return normId(a.Topic)===t.id; });
+      var chips = inBucket.map(function(a){
+        var cid = normId(a.Community);
+        return '<span class="chip" title="row #'+a.id+'">'+(state.comms[cid]||('#'+cid))+'<button class="x" data-rid="'+a.id+'">×</button></span>'; }).join('');
+      return '<div class="bucket" data-tid="'+t.id+'"><h2>'+V(t.Name).toUpperCase()+' ('+inBucket.length+')</h2>'+chips+'</div>'; }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('#chips .chip'), function(el){
+      el.addEventListener('dragstart', function(e){
+        dragCid = el.getAttribute('data-cid');
+        dbg('dragstart cid=' + dragCid);
+        try { e.dataTransfer.setData('text/plain', dragCid); e.dataTransfer.effectAllowed = 'copy'; } catch(err){ dbg('dragstart setData threw'); }
+      });
+      el.addEventListener('dragend', function(){ dragCid = null; });
+      el.addEventListener('click', function(){
+        var cid = el.getAttribute('data-cid');
+        state.pendingCid = (state.pendingCid!==null && String(state.pendingCid)===String(cid)) ? null : cid;
+        render();
+        document.getElementById('status').textContent = state.pendingCid===null
+          ? 'Selection cleared — click a community, then a bucket'
+          : '"' + (state.comms[state.pendingCid]||state.pendingCid) + '" selected → now click a bucket';
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.bucket'), function(b){
+      b.addEventListener('dragover', function(e){ e.preventDefault(); b.classList.add('over'); });
+      b.addEventListener('dragleave', function(){ b.classList.remove('over'); });
+      b.addEventListener('click', function(){
+        if (state.pendingCid!==null){
+          var cid = state.pendingCid; state.pendingCid = null;
+          assign(b.getAttribute('data-tid'), cid);
+        }
+      });
+      b.addEventListener('drop', function(e){ e.preventDefault(); b.classList.remove('over');
+        var raw = (dragCid!==null && dragCid!==undefined && dragCid!=='') ? dragCid : '';
+        var via = 'var';
+        try { if (!raw) { raw = e.dataTransfer.getData('text/plain'); via = 'dt'; } } catch(err){ via = 'dt-threw'; }
+        dragCid = null;
+        dbg('drop tid=' + b.getAttribute('data-tid') + ' raw=' + JSON.stringify(raw) + ' via=' + via);
+        assign(b.getAttribute('data-tid'), raw); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.chip .x'), function(x){
+      x.addEventListener('click', function(){ removeRow(Number(x.getAttribute('data-rid'))); });
+    });
+    st.textContent = 'Live · ' + V(s.Name) + ' · ' + mine.length + ' assignments [rows ' + mine.map(function(a){return a.id;}).join(',') + '] · ' + new Date().toLocaleTimeString();
+    } catch (err) { st.textContent = 'RENDER ERROR: ' + ((err&&err.message)||err); }
+  }
+
+  function assign(tidRaw, cidRaw){
+    var s = state.sub;
+    if (!s){ document.getElementById('status').textContent='Select a submission first'; return; }
+    var tid = resolveTid(tidRaw), cid = resolveCid(cidRaw);
+    if (tid===null || cid===null){ document.getElementById('status').textContent='Bad drop payload (tid='+tidRaw+', cid='+cidRaw+') — resolved to ('+tid+','+cid+')'; return; }
+    if (tid<=0 || cid<=0){ document.getElementById('status').textContent='Bad drop payload (tid='+tid+', cid='+cid+')'; return; }
+    var dup = state.answers.some(function(a){ return normId(a.Submission)===s.id && normId(a.Topic)===tid && normId(a.Community)===cid; });
+    if (dup){ document.getElementById('status').textContent='Already assigned — skipped'; return; }
+    grist.getTable('B1_Answers').create({ fields: { Submission: s.id, Community: cid, Topic: tid } })
+      .then(refresh).catch(function(e){ document.getElementById('status').textContent='Create failed: '+((e&&e.message)||e); });
+  }
+  function removeRow(rid){
+    grist.getTable('B1_Answers').destroy([rid])
+      .then(refresh).catch(function(e){ document.getElementById('status').textContent='Remove failed: '+((e&&e.message)||e); });
+  }
+  function refresh(){
+    var my = ++refreshSeq;
+    Promise.all([grist.docApi.fetchTable('Communities'), grist.docApi.fetchTable('Topics'), grist.docApi.fetchTable('B1_Answers')])
+      .then(function(ts){ if (my !== refreshSeq) return; // stale response: a newer refresh is in flight
+        var comRows=rowsOf(ts[0]), topRows=rowsOf(ts[1]);
+        buildLookups(comRows, topRows);
+        state.topics=topRows; state.answers=rowsOf(ts[2]); render(); })
+      .catch(function(e){ document.getElementById('status').textContent='Load failed: '+((e&&e.message)||e); });
+  }
+
+  grist.ready({ requiredAccess: 'full' });
+  grist.onRecord(function(r){ state.sub = (r && V(r.Name)!==null) ? r : null; refresh(); });
+  grist.onRecords(function(){ refresh(); });
+  refresh();
+</script>
+</body>
+</html>

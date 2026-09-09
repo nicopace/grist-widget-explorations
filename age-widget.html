@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Age Over 40 Indicator</title>
+<script src="http://localhost:47478/grist-plugin-api.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; font-family: sans-serif; }
+  #box { height: 100vh; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; color: white; background: #888; }
+  #box.true { background: #22aa44; }
+  #box.false { background: #cc2222; }
+  small { display:block; font-size: 14px; font-weight: normal; opacity: 0.9; }
+</style>
+</head>
+<body>
+<div id="box">Waiting for selection…</div>
+<script>
+  // Truthy expression: record.Age > 40
+  function isOver40(record) {
+    if (!record) { return null; }
+    var age = record.Age;
+    // Grist may return ['L', value] style? normalize:
+    if (Array.isArray(age)) { age = age[age.length - 1]; }
+    if (age === null || age === undefined || age === '') { return null; }
+    return Number(age) > 40;
+  }
+  function render(record) {
+    var box = document.getElementById('box');
+    var result = isOver40(record);
+    box.classList.remove('true', 'false');
+    if (result === null) {
+      box.style.background = '#888';
+      box.innerHTML = 'No person selected<small>Select a row in People</small>';
+    } else if (result) {
+      box.classList.add('true');
+      var name = (record.Name && record.Name !== '' ? record.Name : 'Person');
+      box.innerHTML = 'OVER 40<small>' + name + ' — Age ' + record.Age + '</small>';
+    } else {
+      box.classList.add('false');
+      var name2 = (record.Name && record.Name !== '' ? record.Name : 'Person');
+      box.innerHTML = '40 or UNDER<small>' + name2 + ' — Age ' + record.Age + '</small>';
+    }
+  }
+  grist.ready({ requiredAccess: 'read table', columns: ['Name', 'Age'] });
+  grist.onRecord(function(record) { render(record); });
+</script>
+</body>
+</html>

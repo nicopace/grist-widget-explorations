@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Impact Podium</title>
+<script src="http://localhost:47478/grist-plugin-api.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b1020; color: #eef2ff; font-family: -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  #wrap { height: 100vh; padding: 14px 18px; box-sizing: border-box; overflow-y: auto; }
+  h1 { margin: 0; font-size: 17px; letter-spacing: 2px; }
+  h1 span { background: linear-gradient(90deg,#fbbf24,#fb923c); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  #sub { font-size: 12px; color: #9aa4c7; margin: 2px 0 12px; }
+  #pin { display: none; font-size: 12px; font-weight: 700; color: #fbbf24; background: rgba(251,191,36,.1);
+    border: 1px solid rgba(251,191,36,.4); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; }
+  #chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  #chips button { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); color: #9aa4c7;
+    border-radius: 12px; padding: 2px 10px; font-size: 11px; cursor: pointer; }
+  #chips button.sel { color: #111; background: #fbbf24; border-color: #fbbf24; font-weight: 700; }
+  #dbg { font-size: 10px; color: #6e7681; margin-top: 6px; font-family: monospace; }
+  .pod { display: flex; align-items: flex-end; justify-content: center; gap: 10px; height: 128px; margin: 6px 0 14px; }
+  .col { display: flex; flex-direction: column; align-items: center; width: 30%; }
+  .bar { width: 100%; border-radius: 8px 8px 0 0; display: flex; align-items: flex-start; justify-content: center;
+    font-size: 22px; padding-top: 8px; animation: rise 1s cubic-bezier(.2,.8,.2,1) both; transform-origin: bottom; }
+  @keyframes rise { from { transform: scaleY(0); } }
+  .p1 .bar { height: 118px; background: linear-gradient(180deg,#fde68a,#b45309); }
+  .p2 .bar { height: 88px; background: linear-gradient(180deg,#e5e7eb,#6b7280); }
+  .p3 .bar { height: 64px; background: linear-gradient(180deg,#fdba74,#9a3412); }
+  .who { font-size: 11px; margin-top: 5px; text-align: center; }
+  .who b { display: block; font-size: 12px; }
+  .row { display: grid; grid-template-columns: 1fr 64px; gap: 8px; align-items: center; font-size: 12px; margin: 8px 0;
+    border-left: 3px solid transparent; padding-left: 6px; }
+  .row.pin { border-left-color: #fbbf24; background: rgba(251,191,36,.06); border-radius: 0 6px 6px 0; }
+  .row.dim { opacity: .38; }
+  .row .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .t small { color: #9aa4c7; }
+  .track { grid-column: 1 / -1; height: 9px; background: rgba(255,255,255,.07); border-radius: 5px; overflow: hidden; position: relative; }
+  .fi { height: 100%; border-radius: 5px; background: linear-gradient(90deg,#818cf8,#22d3ee); animation: grow 1s cubic-bezier(.2,.8,.2,1) both; transform-origin: left; }
+  .row.pin .fi { background: linear-gradient(90deg,#fbbf24,#fb923c); }
+  .sc { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(251,191,36,.75); }
+  @keyframes grow { from { transform: scaleX(0); } }
+  .grade { display: inline-block; font-size: 10px; font-weight: 800; width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 50%; margin-right: 6px; }
+  .gA { background: rgba(52,211,153,.2); color: #34d399; } .gB { background: rgba(34,211,238,.2); color: #22d3ee; } .gC { background: rgba(251,146,60,.2); color: #fb923c; }
+  .imp { text-align: right; color: #fbbf24; font-variant-numeric: tabular-nums; font-weight: 700; }
+  #status { font-size: 11px; color: #9aa4c7; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>IMPACT <span>PODIUM</span></h1>
+  <div id="sub">score × field weight · gold marker = raw score position</div>
+  <div id="pin"></div>
+  <div id="chips"></div>
+  <div class="pod" id="pod"></div>
+  <div id="list"></div>
+  <div id="status">Connecting…</div>
+  <div id="dbg">boot</div>
+</div>
+<script>
+  var V = function(v){ return (Array.isArray(v)?v[v.length-1]:v); };
+  function rowsOf(t){ t=t||{}; var out=[], n=(t.id||[]).length;
+    for (var i=0;i<n;i++){ var r={id:t.id[i]}; Object.keys(t).forEach(function(c){ if(c!=='id')r[c]=t[c][i]; }); out.push(r); } return out; }
+  var MEDAL = ['🥇','🥈','🥉'];
+  var state = { all: [], names: {}, pinMission: null, pinName: '' };
+  function dbg(m){ try { document.getElementById('dbg').textContent = new Date().toLocaleTimeString() + ' ' + m; } catch(e){} }
+  function togglePin(mid){
+    mid = (mid===null || mid===undefined) ? null : String(mid);
+    state.pinMission = (state.pinMission!==null && String(state.pinMission)===mid) ? null : mid;
+    render();
+  }
+
+  function shaped(rows){ return rows && rows.length && ('Title' in rows[0]); }
+
+  function render(){
+    var E = state.all;
+    var rows = E.map(function(e){ return { t: V(e.Title), s: Number(V(e.Result_Score))||0,
+      imp: Number(V(e.Impact))||0, g: V(e.Grade)||'?', slug: V(e.Slug)||'', m: V(e.Mission) }; })
+      .sort(function(a,b){ return b.imp-a.imp; });
+    if (!rows.length){ document.getElementById('status').textContent='No experiments'; return; }
+    var pin = state.pinMission;
+    var ordered = rows.slice().sort(function(a,b){
+      var pa = pin!==null && String(a.m)===String(pin) ? 0 : 1;
+      var pb = pin!==null && String(b.m)===String(pin) ? 0 : 1;
+      return pa-pb || b.imp-a.imp; });
+    var byM = {};
+    rows.forEach(function(r){ var k = String(r.m); byM[k] = (byM[k]||0)+1; });
+    var chips = '<button class="'+(pin===null?'sel':'')+'" onclick="togglePin()">All ('+rows.length+')</button>';
+    Object.keys(byM).sort().forEach(function(k){
+      chips += '<button class="'+(pin!==null&&String(pin)===k?'sel':'')+'" onclick="togglePin(\''+k+'\')">'+(state.names[k]||('#'+k))+' ('+byM[k]+')</button>'; });
+    document.getElementById('chips').innerHTML = chips;
+    var pinEl = document.getElementById('pin');
+    if (pin!==null){ var n = ordered.filter(function(r){return String(r.m)===String(pin);}).length;
+      pinEl.style.display='block';
+      pinEl.textContent = '● '+(state.names[pin]||('Mission #'+pin))+' — '+n+' experiment'+(n===1?'':'s')+' pinned · click the mission again to release'; }
+    else pinEl.style.display='none';
+    var mx = Math.max.apply(null, rows.map(function(r){return r.imp;}).concat([1]));
+    var scMax = Math.max.apply(null, rows.map(function(r){return r.s;}).concat([1]));
+    var top = rows.slice(0,3), order = [top[1], top[0], top[2]].filter(Boolean);
+    document.getElementById('pod').innerHTML = order.map(function(r){
+      var c = (top[1]&&r===top[1])?'p2':(r===top[0]?'p1':'p3');
+      var mi = rows.indexOf(r);
+      return '<div class="col '+c+'"><div class="bar">'+MEDAL[mi]+'</div><div class="who"><b>'+r.t+'</b>'+r.imp.toFixed(1)+'</div></div>'; }).join('');
+    document.getElementById('list').innerHTML = ordered.map(function(r){
+      var isPin = pin!==null && String(r.m)===String(pin);
+      var isDim = pin!==null && !isPin;
+      var scPos = (r.s/scMax*100).toFixed(1);
+      return '<div class="row'+(isPin?' pin':'')+(isDim?' dim':'')+'"><div class="t"><span class="grade g'+r.g+'">'+r.g+'</span>'+r.t+' <small>'+r.slug+'</small></div>'
+        + '<div class="imp">'+r.imp.toFixed(1)+'</div>'
+        + '<div class="track"><div class="fi" style="width:'+(r.imp/mx*100).toFixed(1)+'%"></div>'
+        + '<div class="sc" style="left:'+scPos+'%" title="raw score '+r.s+'"></div></div></div>'; }).join('');
+    document.getElementById('status').textContent = 'Live · ' + rows.length + ' experiments · ' + new Date().toLocaleTimeString();
+  }
+
+  grist.ready({ requiredAccess: 'full' });
+  function load(){
+    Promise.all([grist.docApi.fetchTable('Experiments'), grist.docApi.fetchTable('Missions')]).then(function(ts){
+      state.all = rowsOf(ts[0]);
+      var names={}; rowsOf(ts[1]).forEach(function(m){ names[m.id]=V(m.Name); });
+      state.names = names; render();
+    }).catch(function(e){ document.getElementById('status').textContent = 'Load failed: '+((e&&e.message)||e); });
+  }
+  grist.onRecords(function(rows){
+    dbg('onRecords n=' + (rows ? rows.length : 'null'));
+    if (shaped(rows)){ state.all = rows; render(); return; }
+    load();
+  });
+  grist.onRecord(function(r){
+    dbg('onRecord keys=' + (r ? Object.keys(r).join(',') : 'null'));
+    if (r && 'Outcome' in r){ togglePin(r.id); }
+  });
+  load();
+</script>
+</body>
+</html>

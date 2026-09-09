@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aurora Flight Deck</title>
+<script src="http://localhost:47478/grist-plugin-api.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #05070f; color: #e6edf3; font-family: "SF Mono", Menlo, Consolas, monospace; overflow: hidden; }
+  #wrap { display: flex; height: 100vh; }
+  #stage { position: relative; flex: 1.6; min-width: 0; }
+  #space { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #side { flex: 1; min-width: 230px; padding: 14px 16px; background: rgba(13,17,23,.92); border-left: 1px solid #21262d; overflow-y: auto; box-sizing: border-box; }
+  #side h1 { font-size: 20px; margin: 0 0 2px; letter-spacing: .5px; }
+  #pill { display: inline-block; font-size: 12px; font-weight: bold; padding: 3px 10px; border-radius: 20px; margin: 6px 0 10px; }
+  .ok { background: #1e8e3e; } .warn { background: #b06000; } .bad { background: #c5221f; } .na { background: #555; }
+  .stat { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px dashed #21262d; }
+  .stat b { color: #79c0ff; }
+  #crew { margin-top: 10px; font-size: 12px; }
+  .chip { display: inline-block; background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 2px 9px; margin: 2px 3px 2px 0; }
+  #count { margin-top: 12px; font-size: 13px; color: #ffa657; }
+  #spark-title { margin-top: 12px; font-size: 11px; color: #8b949e; letter-spacing: 1px; }
+  #spark { width: 100%; height: 74px; display: block; margin-top: 4px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px; }
+  #log { font-size: 11px; color: #8b949e; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage"><canvas id="space"></canvas></div>
+  <div id="side">
+    <h1 id="mname">—</h1>
+    <span id="pill" class="na">—</span>
+    <div class="stat"><span>Duration</span><b id="s-dur">—</b></div>
+    <div class="stat"><span>Cost / day</span><b id="s-cost">—</b></div>
+    <div class="stat"><span>Signal</span><b id="s-sig">—</b></div>
+    <div class="stat"><span>Power (latest)</span><b id="s-pow">—</b></div>
+    <div id="crew"></div>
+    <div id="count">—</div>
+    <div id="spark-title">POWER kW / SOL</div>
+    <canvas id="spark" width="360" height="74"></canvas>
+    <div id="log">Awaiting selection…</div>
+  </div>
+</div>
+<script>
+  var V = function(v){ return (Array.isArray(v) ? v[v.length-1] : v); };
+  var state = { rec: null, tele: [], crewNames: {}, t0: Date.now(),
+    stars: [], craft: { angle: 0 } };
+  for (var i = 0; i < 160; i++) state.stars.push({ x: Math.random(), y: Math.random(), r: Math.random()*1.4+.3, p: Math.random()*6.28, s: .5+Math.random()*2 });
+
+  var space = document.getElementById('space'), sx = space.getContext('2d');
+  var spark = document.getElementById('spark'), gx = spark.getContext('2d');
+  function fit(){ var r = space.parentElement.getBoundingClientRect(); space.width = r.width; space.height = r.height; }
+  window.addEventListener('resize', fit); fit();
+
+  function toMs(d){ if (d===null||d===undefined||d==='') return null; if (typeof d==='number') return d<1e12?d*1000:d; var t=Date.parse(d); return isNaN(t)?null:t; }
+
+  function progress(rec){
+    var l = toMs(V(rec.Launch_Date)), e = toMs(V(rec.Return_Date)), now = Date.now();
+    if (l===null) return 0; if (now<=l) return 0; if (e===null||e<=l) return 1;
+    return Math.min(1, Math.max(0, (now-l)/(e-l)));
+  }
+
+  function draw(){
+    var W = space.width, H = space.height, t = (Date.now()-state.t0)/1000;
+    sx.fillStyle = '#05070f'; sx.fillRect(0,0,W,H);
+    // stars
+    for (var i=0;i<state.stars.length;i++){ var s=state.stars[i];
+      sx.globalAlpha = .35+.65*Math.abs(Math.sin(t*s.s+s.p));
+      sx.fillStyle = '#c9d1d9'; sx.beginPath(); sx.arc(s.x*W, s.y*H, s.r, 0, 6.29); sx.fill(); }
+    sx.globalAlpha = 1;
+    var cx=W/2, cy=H/2, R=Math.min(W,H)*.34;
+    // sun
+    var g = sx.createRadialGradient(cx,cy,4,cx,cy,46);
+    g.addColorStop(0,'#ffd76a'); g.addColorStop(.4,'#f0883e'); g.addColorStop(1,'rgba(240,136,62,0)');
+    sx.fillStyle=g; sx.beginPath(); sx.arc(cx,cy,46,0,6.29); sx.fill();
+    sx.fillStyle='#ffd76a'; sx.beginPath(); sx.arc(cx,cy,14,0,6.29); sx.fill();
+    // orbit rings
+    sx.strokeStyle='rgba(121,192,255,.28)'; sx.lineWidth=1;
+    [0.55,0.8,1.0].forEach(function(k){ sx.beginPath(); sx.ellipse(cx,cy,R*k,R*k*.62,0,0,6.29); sx.stroke(); });
+    // craft
+    if (state.rec){
+      var p = progress(state.rec);
+      state.craft.angle += 0.004 + p*0.01;
+      var a = state.craft.angle, ex = cx + Math.cos(a)*R*(0.55+0.45*p), ey = cy + Math.sin(a)*R*(0.55+0.45*p)*.62;
+      var sig = latestSignal(); var col = sig==='Strong' ? '#3fb950' : (sig==='Weak' ? '#d29922' : '#f85149');
+      sx.shadowColor = col; sx.shadowBlur = 18; sx.fillStyle = '#fff';
+      sx.beginPath(); sx.arc(ex,ey,6,0,6.29); sx.fill(); sx.shadowBlur = 0;
+      // trail
+      sx.strokeStyle = col; sx.globalAlpha=.5; sx.beginPath();
+      for (var k=1;k<=24;k++){ var pa=a-k*.02, px=cx+Math.cos(pa)*R*(0.55+0.45*p), py=cy+Math.sin(pa)*R*(0.55+0.45*p)*.62;
+        k===1 ? sx.moveTo(px,py) : sx.lineTo(px,py); }
+      sx.stroke(); sx.globalAlpha=1;
+      sx.fillStyle='#8b949e'; sx.font='11px monospace';
+      sx.fillText('SOL PROGRESS '+(p*100).toFixed(1)+'%', 12, H-14);
+    } else {
+      sx.fillStyle='#8b949e'; sx.font='13px monospace'; sx.fillText('Select a mission →', 14, H/2);
+    }
+    requestAnimationFrame(draw);
+  }
+
+  function latestSignal(){
+    if (!state.tele.length) return null;
+    var last = state.tele[state.tele.length-1];
+    return V(last.Signal);
+  }
+
+  function drawSpark(){
+    gx.clearRect(0,0,360,74);
+    if (state.tele.length < 2){ gx.fillStyle='#8b949e'; gx.font='11px monospace'; gx.fillText('no telemetry', 12, 40); return; }
+    var pts = state.tele.map(function(r){ return { s: Number(V(r.Sol)), p: Number(V(r.Power_kW)) }; })
+      .filter(function(o){ return isFinite(o.s)&&isFinite(o.p); })
+      .sort(function(a,b){ return a.s-b.s; });
+    if (!pts.length) return;
+    var pmin=Math.min.apply(null,pts.map(function(o){return o.p;})), pmax=Math.max.apply(null,pts.map(function(o){return o.p;}));
+    if (pmax===pmin) pmax=pmin+1;
+    var smax=pts[pts.length-1].s||1;
+    gx.strokeStyle='#53b1fd'; gx.lineWidth=2; gx.beginPath();
+    pts.forEach(function(o,i){ var x=8+(o.s/smax)*344, y=66-((o.p-pmin)/(pmax-pmin))*56;
+      i===0?gx.moveTo(x,y):gx.lineTo(x,y); });
+    gx.stroke();
+    gx.fillStyle='#8b949e'; gx.font='10px monospace';
+    gx.fillText(pmax.toFixed(1)+' kW', 8, 12); gx.fillText(pmin.toFixed(1)+' kW', 8, 70);
+  }
+
+  function side(rec){
+    document.getElementById('mname').textContent = V(rec.Name) || '—';
+    var o = V(rec.Outcome), pill = document.getElementById('pill');
+    pill.textContent = o || '?'; pill.className = o==='Success'?'ok':(o==='Failure'?'bad':(o?'warn':'na'));
+    var days = Number(V(rec.Duration_Days)), cost = Number(V(rec.Cost_M));
+    document.getElementById('s-dur').textContent = isFinite(days) ? days+' days' : '—';
+    document.getElementById('s-cost').textContent = (isFinite(cost)&&isFinite(days)&&days) ? '$'+(cost/days).toFixed(1)+'M' : '—';
+    var l=toMs(V(rec.Launch_Date)), e=toMs(V(rec.Return_Date)), now=Date.now(), day=864e5, msg;
+    if (l===null) msg='Launch TBD'; else if (now<l) msg='T-'+Math.ceil((l-now)/day)+' days';
+    else if (e!==null&&now>e) msg='Returned '+Math.floor((now-e)/day)+'d ago'; else msg='Day +'+Math.floor((now-l)/day)+' in flight';
+    document.getElementById('count').textContent = '⏱ ' + msg;
+    var crewIds = V(rec.Crew) || [];
+    if (!Array.isArray(crewIds)) crewIds = [crewIds];
+    document.getElementById('crew').innerHTML = 'Crew ('+crewIds.length+'): ' +
+      crewIds.map(function(id){ return '<span class="chip">'+(state.crewNames[id]||('#'+id))+'</span>'; }).join('');
+  }
+
+  function refresh(){
+    if (!state.rec) return;
+    side(state.rec);
+    var sig = latestSignal();
+    document.getElementById('s-sig').textContent = sig || '—';
+    var pw = state.tele.length ? Number(V(state.tele[state.tele.length-1].Power_kW)) : NaN;
+    document.getElementById('s-pow').textContent = isFinite(pw) ? pw.toFixed(1)+' kW' : '—';
+    drawSpark();
+  }
+
+  grist.ready({ requiredAccess: 'full',
+    columns: ['Name','Outcome','Cost_M','Duration_Days','Launch_Date','Return_Date','Crew'] });
+  grist.onRecord(function(r){ state.rec = r && V(r.Name)!==null ? r : null; state.tele=[]; refresh();
+    document.getElementById('log').textContent = r ? 'Tracking ' + V(r.Name) + '…' : 'Awaiting selection…'; });
+  grist.onRecords(function(rows){
+    if (!rows) return;
+    var ids = {};
+    (state.rec && V(state.rec.Crew) || []).forEach(function(id){ ids[Array.isArray(id)?id[id.length-1]:id]=1; });
+    grist.docApi.fetchTable('Telemetry').then(function(t){
+      var out=[], cols=t||{};
+      for (var i=0;i<(cols.id||[]).length;i++){ var row={}; Object.keys(cols).forEach(function(c){ row[c]=cols[c][i]; }); out.push(row); }
+      var mid = state.rec && state.rec.id;
+      state.tele = out.filter(function(r){ var m=V(r.Mission); return m===mid; })
+        .sort(function(a,b){ return Number(V(a.Sol))-Number(V(b.Sol)); });
+      return grist.docApi.fetchTable('Astronauts');
+    }).then(function(t){
+      var cols=t||{}, names={};
+      for (var i=0;i<(cols.id||[]).length;i++) names[cols.id[i]]=cols.Name?cols.Name[i]:('#'+cols.id[i]);
+      state.crewNames = names; refresh();
+      document.getElementById('log').textContent = state.tele.length + ' telemetry pts · ' + Object.keys(names).length + ' crew known';
+    }).catch(function(err){ document.getElementById('log').textContent = 'Fetch failed: ' + ((err&&err.message)||err); });
+  });
+  requestAnimationFrame(draw);
+</script>
+</body>
+</html>

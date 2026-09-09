@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aurora Annual Review</title>
+<script src="http://localhost:47478/grist-plugin-api.js"></script>
+<style>
+  :root { --bg:#0b1020; --card:rgba(255,255,255,.045); --line:rgba(255,255,255,.09);
+    --txt:#eef2ff; --mut:#9aa4c7; --ind:#818cf8; --cyn:#22d3ee; --gld:#fbbf24; --grn:#34d399; --red:#f87171; --amb:#fb923c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--txt); font-family: -apple-system, "Segoe UI", Inter, Roboto, sans-serif; }
+  body { padding: 22px 26px 40px; }
+  body::before { content:""; position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(700px 320px at 12% -40px, rgba(129,140,248,.16), transparent 65%),
+                radial-gradient(700px 340px at 88% -30px, rgba(34,211,238,.12), transparent 65%); }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 30px; letter-spacing: .5px; }
+  header h1 span { background: linear-gradient(90deg,var(--ind),var(--cyn)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  header small { color: var(--mut); font-size: 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 18px 0; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; position: relative; overflow: hidden; }
+  .kpi::after { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background: var(--ac,var(--ind)); }
+  .kpi .v { font-size: 27px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .kpi .l { font-size: 11px; color: var(--mut); letter-spacing: 1.2px; margin-top: 3px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .card h2 { margin: 0 0 4px; font-size: 13px; letter-spacing: 1.6px; color: var(--mut); }
+  .card .sub { font-size: 12px; color: var(--mut); margin-bottom: 10px; }
+  .bars div.row { display: grid; grid-template-columns: 130px 1fr 64px; align-items: center; gap: 10px; margin: 7px 0; font-size: 13px; }
+  .track { height: 10px; background: rgba(255,255,255,.07); border-radius: 6px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 6px; transform-origin: left; animation: grow 1s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes grow { from { transform: scaleX(0); } }
+  .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--cyn); }
+  table.lb { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.lb td { padding: 7px 4px; border-bottom: 1px solid var(--line); }
+  table.lb tr:first-child td { padding-top: 2px; }
+  .rank { display:inline-flex; width:24px; height:24px; border-radius:50%; background:rgba(255,255,255,.08); align-items:center; justify-content:center; font-size:11px; font-weight:700; margin-right:8px; }
+  tr.top .rank { background: linear-gradient(135deg,var(--gld),#b45309); color:#111; }
+  .sig { font-size:11px; font-weight:700; padding:2px 9px; border-radius:12px; }
+  .sS { background:rgba(52,211,153,.16); color:var(--grn); } .sW { background:rgba(251,146,60,.16); color:var(--amb); } .sL { background:rgba(248,113,113,.16); color:var(--red); }
+  .tl { position: relative; margin: 14px 6px 4px; height: 86px; }
+  .tl .axis { position:absolute; left:0; right:0; top:44px; height:2px; background:rgba(255,255,255,.14); border-radius:2px; }
+  .tl .dot { position:absolute; top:44px; transform:translate(-50%,-50%); text-align:center; }
+  .tl .pip { width:13px; height:13px; border-radius:50%; margin:0 auto; border:2px solid #0b1020; }
+  .tl .nm { font-size:10px; margin-top:4px; white-space:nowrap; color:var(--txt); }
+  .tl .yr { position:absolute; top:62px; transform:translateX(-50%); font-size:10px; color:var(--mut); }
+  #status { color: var(--mut); font-size: 12px; margin-top: 14px; }
+  .donut-wrap { display:flex; align-items:center; gap:18px; }
+  .legend { font-size:13px; } .legend div { margin:6px 0; }
+  .sw { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:8px; }
+  @media (max-width: 900px){ .kpis{grid-template-columns:repeat(2,1fr);} .grid2{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<header><h1>AURORA <span>ANNUAL REVIEW</span></h1><small id="asof">loading…</small></header>
+<section class="kpis" id="kpis"></section>
+<section class="grid2">
+  <div class="card"><h2>SPEND BY OUTCOME</h2><div class="sub">Total mission cost, $M</div>
+    <div class="donut-wrap"><svg id="donut" width="170" height="170" viewBox="0 0 42 42"></svg><div class="legend" id="donut-leg"></div></div></div>
+  <div class="card"><h2>AGENCY BUDGETS</h2><div class="sub">Annual budget, $M</div><div class="bars" id="budgets"></div></div>
+</section>
+<section class="grid2">
+  <div class="card"><h2>SCIENCE QUALITY</h2><div class="sub">Mean experiment score by field</div><div class="bars" id="scores"></div></div>
+  <div class="card"><h2>TOP ASTRONAUTS</h2><div class="sub">By cumulative days in space</div><table class="lb" id="leaders"></table></div>
+</section>
+<section class="grid2">
+  <div class="card"><h2>LAUNCH TIMELINE</h2><div class="sub">All missions, 2024 → 2026</div><div class="tl" id="timeline"></div></div>
+  <div class="card"><h2>FLEET HEALTH</h2><div class="sub">Latest telemetry signal per mission</div><table class="lb" id="health"></table></div>
+</section>
+<div id="status">Connecting to Grist…</div>
+<script>
+  var $ = function(id){ return document.getElementById(id); };
+  function rowsOf(t){ t=t||{}; var ks=Object.keys(t).filter(function(k){return k!=='id';}), n=(t.id||[]).length, out=[];
+    for (var i=0;i<n;i++){ var r={id:t.id[i]}; ks.forEach(function(k){ r[k]=t[k][i]; }); out.push(r); } return out; }
+  function V(v){ return (Array.isArray(v)?v[v.length-1]:v); }
+  function num(v){ v=V(v); var n=Number(v); return isFinite(n)?n:0; }
+  // Grist Date/DateTime arrive as Unix timestamps (seconds), not strings — Date.parse() chokes on those.
+  function parseD(d){ d=V(d); if(d===null||d===undefined||d==='') return null;
+    if(typeof d==='number') return d<1e12 ? d*1000 : d;
+    var t=Date.parse(d); return isNaN(t)?null:t; }
+  function countUp(el, to, dec, prefix, suffix){
+    dec=dec||0; prefix=prefix||''; suffix=suffix||'';
+    var t0=performance.now(), D=1100;
+    (function f(t){ var p=Math.min(1,(t-t0)/D), e=1-Math.pow(1-p,3);
+      el.textContent = prefix + (to*e).toFixed(dec) + suffix;
+      if (p<1) requestAnimationFrame(f); })(t0);
+  }
+  var OUTC = { Success:'#34d399', Partial:'#fb923c', Failure:'#f87171' };
+
+  function render(d){
+    var M=d.Missions, E=d.Experiments, T=d.Telemetry, A=d.Astronauts, G=d.Agencies;
+    $('asof').textContent = ' · ' + M.length + ' missions · ' + E.length + ' experiments · data as of ' + new Date().toLocaleString();
+    var spend=M.reduce(function(s,m){return s+num(m.Cost_M);},0);
+    var ok=M.filter(function(m){return V(m.Outcome)==='Success';}).length;
+    var avgE=E.length?E.reduce(function(s,e){return s+num(e.Result_Score);},0)/E.length:0;
+    var days=M.reduce(function(s,m){ var a=parseD(m.Launch_Date),b=parseD(m.Return_Date);
+      if(a!==null&&b!==null){var d=(b-a)/864e5; if(isFinite(d)&&d>=0)return s+d;} return s; },0);
+    var K=[ [M.length,0,'','MISSIONS','var(--ind)'], [M.length?ok/M.length*100:0,1,'','SUCCESS %','var(--grn)'],
+      [spend,0,'$','SPEND $M','var(--gld)'], [avgE,1,'','AVG SCORE','var(--cyn)'], [days,0,'','CREW-DAYS','var(--amb)'] ];
+    $('kpis').innerHTML = K.map(function(k,i){ return '<div class="kpi" style="--ac:'+k[4]+'"><div class="v" id="k'+i+'">–</div><div class="l">'+k[3]+'</div></div>'; }).join('');
+    K.forEach(function(k,i){ countUp($('k'+i), k[0], k[1], k[2]); });
+
+    // donut: spend by outcome
+    var byO={}; M.forEach(function(m){ var o=V(m.Outcome)||'?'; byO[o]=(byO[o]||0)+num(m.Cost_M); });
+    var C=2*Math.PI*15.9155, off=25, svg='';
+    Object.keys(byO).forEach(function(o){ var frac=spend?byO[o]/spend:0;
+      svg += '<circle cx="21" cy="21" r="15.9155" fill="none" stroke="'+(OUTC[o]||'#888')+'" stroke-width="5.5" stroke-dasharray="'+(frac*C).toFixed(1)+' '+C.toFixed(1)+'" stroke-dashoffset="'+(-off).toFixed(1)+'" stroke-linecap="butt"><animate attributeName="stroke-dashoffset" from="25" to="'+(-off).toFixed(1)+'" dur="1s" fill="freeze"/></circle>';
+      off -= frac*100; });
+    svg += '<text x="21" y="23.5" text-anchor="middle" fill="#eef2ff" font-size="7" font-weight="bold">$'+spend+'M</text>';
+    $('donut').innerHTML = svg;
+    $('donut-leg').innerHTML = Object.keys(byO).map(function(o){
+      return '<div><span class="sw" style="background:'+(OUTC[o]||'#888')+'"></span>'+o+' — $'+byO[o]+'M</div>'; }).join('');
+
+    // agency budgets
+    var mx=Math.max.apply(null, G.map(function(g){return num(g.Budget_M);}).concat([1]));
+    $('budgets').innerHTML = G.map(function(g){ var b=num(g.Budget_M);
+      return '<div class="row"><span>'+V(g.Name)+'</span><div class="track"><div class="fill" style="width:'+(b/mx*100).toFixed(1)+'%;background:linear-gradient(90deg,var(--ind),var(--cyn))"></div></div><span class="num">$'+b+'M</span></div>'; }).join('');
+
+    // scores by field
+    var F={}; E.forEach(function(e){ var f=V(e.Field)||'?'; (F[f]=F[f]||[]).push(num(e.Result_Score)); });
+    $('scores').innerHTML = Object.keys(F).map(function(f){ var a=F[f].reduce(function(s,x){return s+x;},0)/F[f].length;
+      var col=a>=85?'var(--grn)':(a>=70?'var(--cyn)':'var(--amb)');
+      return '<div class="row"><span>'+f+' <small style="color:var(--mut)">n='+F[f].length+'</small></span><div class="track"><div class="fill" style="width:'+a.toFixed(0)+'%;background:'+col+'"></div></div><span class="num">'+a.toFixed(1)+'</span></div>'; }).join('');
+
+    // leaderboard
+    var L=A.map(function(a){ var ds=V(a.Total_Days); return { n:V(a.Name), d:Number(ds)||0 }; })
+      .sort(function(a,b){return b.d-a.d;}).slice(0,5);
+    $('leaders').innerHTML = L.map(function(r,i){
+      return '<tr class="'+(i===0?'top':'')+'"><td><span class="rank">'+(i+1)+'</span>'+r.n+'</td><td style="text-align:right;color:var(--cyn)">'+r.d+' d</td></tr>'; }).join('');
+
+    // timeline
+    var ds=M.map(function(m){return parseD(m.Launch_Date);}).filter(function(x){return x!==null;});
+    var html='<div class="axis"></div>';
+    if (!ds.length){ html += '<div style="color:var(--mut);font-size:12px">no launch dates</div>'; }
+    else {
+    var mn=Math.min.apply(null,ds), mx2=Math.max.apply(null,ds), span=(mx2-mn)||864e5;
+    [2024,2025,2026].forEach(function(y){ var x=((Date.parse(y+'-01-01')-mn)/span*100);
+      if(x>=0&&x<=100) html+='<span class="yr" style="left:'+x+'%">'+y+'</span>'; });
+    M.forEach(function(m){ var ld=parseD(m.Launch_Date); if(ld===null) return;
+      var x=((ld-mn)/span*100), o=V(m.Outcome);
+      html+='<div class="dot" style="left:'+x.toFixed(1)+'%" title="'+V(m.Name)+'"><div class="pip" style="background:'+(OUTC[o]||'#888')+'"></div><div class="nm">'+V(m.Name)+'</div></div>'; });
+    }
+    $('timeline').innerHTML = html;
+
+    // fleet health: latest signal per mission
+    var byM={}; T.forEach(function(r){ var m=V(r.Mission); (byM[m]=byM[m]||[]).push(r); });
+    $('health').innerHTML = M.map(function(m){
+      var rows=(byM[m.id]||[]).sort(function(a,b){return num(a.Sol)-num(b.Sol);});
+      var last=rows[rows.length-1], s=last?V(last.Signal):null, pw=last?Number(V(last.Power_kW)):NaN;
+      var cls=s==='Strong'?'sS':(s==='Weak'?'sW':'sL');
+      return '<tr><td>'+V(m.Name)+'</td><td style="text-align:right">'+(s?'<span class="sig '+cls+'">'+s+'</span>':'<span style="color:var(--mut)">no data</span>')+(isFinite(pw)?' <span style="color:var(--mut)">'+pw.toFixed(1)+'kW</span>':'')+'</td></tr>'; }).join('');
+    $('status').textContent = 'Live · ' + new Date().toLocaleTimeString();
+  }
+
+  grist.ready({ requiredAccess: 'full' });
+  function load(){
+    $('status').textContent = 'Fetching tables…';
+    Promise.all(['Missions','Experiments','Telemetry','Astronauts','Agencies'].map(function(t){ return grist.docApi.fetchTable(t); }))
+      .then(function(ts){ render({ Missions:rowsOf(ts[0]), Experiments:rowsOf(ts[1]), Telemetry:rowsOf(ts[2]), Astronauts:rowsOf(ts[3]), Agencies:rowsOf(ts[4]) }); })
+      .catch(function(e){ $('status').textContent = 'Load failed: ' + ((e&&e.message)||e); });
+  }
+  grist.onRecords(load);
+  load();
+</script>
+</body>
+</html>

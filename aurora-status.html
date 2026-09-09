@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mission Status Board</title>
+<script src="http://localhost:47478/grist-plugin-api.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; font-family: sans-serif; }
+  #box { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; background: #555; }
+  #box.ok { background: #1e8e3e; } #box.warn { background: #e37400; } #box.bad { background: #c5221f; }
+  #name { font-size: 30px; font-weight: bold; }
+  #sub { font-size: 15px; opacity: 0.92; margin-top: 6px; }
+  #cost { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div id="box"><div id="name">Waiting…</div></div>
+<script>
+  // Truthy expressions on the selected mission's Outcome + duration.
+  function val(v) { return (Array.isArray(v) ? v[v.length - 1] : v); }
+  function render(r) {
+    var box = document.getElementById('box');
+    box.classList.remove('ok', 'warn', 'bad');
+    if (!r || val(r.Name) === null || val(r.Name) === undefined || val(r.Name) === '') {
+      box.innerHTML = '<div id="name">No mission selected</div><div id="sub">Click a row in Missions</div>';
+      return;
+    }
+    var outcome = val(r.Outcome), days = Number(val(r.Duration_Days)), cost = Number(val(r.Cost_M));
+    var cls = outcome === 'Success' ? 'ok' : (outcome === 'Failure' ? 'bad' : 'warn');
+    var long = (days > 180) ? ' · LONG-HAUL' : '';
+    box.classList.add(cls);
+    box.innerHTML = '<div id="name">' + r.Name + '</div>'
+      + '<div id="sub">' + outcome + ' · ' + days + ' days' + long + '</div>'
+      + '<div id="cost">$' + cost + 'M total · $' + (days ? (cost / days).toFixed(1) : '?') + 'M/day</div>';
+  }
+  grist.ready({ requiredAccess: 'read table', columns: ['Name', 'Outcome', 'Cost_M', 'Duration_Days'] });
+  grist.onRecord(function(record) { render(record); });
+</script>
+</body>
+</html>
