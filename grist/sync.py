@@ -25,7 +25,7 @@ import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent
 FORK_DOC = "jrP3kqTf6nSBtDYo2nUkcF"  # MEAL3-flip-test (the flipped reference fork)
-DEFAULT_GRISt = ROOT / "meal3-flip.grist"
+DEFAULT_GRISt = ROOT / "meal.grist"
 SNAPSHOT = ROOT / "snapshot.sql"
 
 

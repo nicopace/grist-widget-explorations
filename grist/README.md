@@ -5,7 +5,7 @@ so we can iterate on a file instead of mutating a live user's doc.
 
 | File | What it is |
 |---|---|
-| `meal3-flip.grist` | The canonical Grist document (SQLite, byte-identical round-trip). Import/upload this to get the doc back. Its binary diff is unusable, which is why the snapshot below exists. |
+| `meal.grist` | The canonical Grist document (SQLite, byte-identical round-trip). Import/upload this to get the doc back. Its binary diff is unusable, which is why the snapshot below exists. |
 | `snapshot.sql` | Human-readable, diffable dump of all user tables (Grist helper columns omitted). This is what you review in `git diff`. |
 | `sync.py` | Pull/dump/diff helper. |
 
@@ -30,7 +30,7 @@ Auth comes from `GRIST_API_KEY` / `GRIST_BASE_URL` env vars, falling back to
 
 `.grist` files are self-contained and portable:
 
-- **Read locally**: `sqlite3 grist/meal3-flip.grist ".tables"`
+- **Read locally**: `sqlite3 grist/meal.grist ".tables"`
 - **Restore into Grist**: `POST /api/docs/{dstDocId}/replace` with the file, or
   import it when creating a document. A pull→push cycle reproduces the doc exactly.
 

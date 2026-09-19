@@ -1,5 +1,5 @@
 -- Grist document snapshot (diffable). Regenerate: python3 grist/sync.py dump
--- source: meal3-flip.grist
+-- source: meal.grist
 -- Grist internal helper columns (gristHelper_*, manualSort) are omitted.
 
 -- B1_Community_Check
