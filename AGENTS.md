@@ -59,3 +59,23 @@ the goal is maximum use of built-in Grist features and minimum external code.
 Widgets are served locally with `python3 -m http.server 8123 --directory /Users/nico/github/grist-fpp`
 and wired into `_grist_Views_section.options` via REST `PATCH` (the MCP page tools
 cannot write widget URLs). Bump `?v=N` on the URL to defeat iframe caching.
+
+## Standard workflow: repo-local Grist server + git-backed doc
+
+Use this for all Grist work from now on. It avoids depending on Grist Desktop and
+never mutates a live user document.
+
+```bash
+./grist/run.sh start     # local gristlabs/grist in Docker, data in .grist-server/ (gitignored)
+./grist/run.sh import    # upload grist/meal.grist into the Home workspace; prints docId + URL
+#   edit in the browser at http://localhost:8484/o/docs/<docId>
+./grist/run.sh export    # server doc -> grist/meal.grist + refresh grist/snapshot.sql
+git diff grist/snapshot.sql
+```
+
+- `grist/meal.grist` is the canonical, git-tracked document; `grist/snapshot.sql`
+  is the human-readable diff layer (regenerate with `python3 grist/sync.py dump`).
+- API base is `http://localhost:8484/api`, key `gristfpp-local-dev-key`
+  (written into the local home DB by `run.sh start`).
+- Only `export` touches tracked files, so browser edits stay untracked until reviewed.
+

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B1 Matrix — junction edition</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; font-family: -apple-system, "Segoe UI", sans-serif; background: #fff; color: #1a2333; }
+  #wrap { padding: 0; box-sizing: border-box; }
+  #status { display: none; font-size: 12px; color: #5b6478; padding: 10px 12px; }
+  #status.err { display: block; color: #b42318; font-weight: 600; }
+  #status.busy { display: block; }
+  #scroll { overflow: auto; max-height: 100vh; }
+  table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 12px; }
+  thead th { position: sticky; top: 0; background: #f2f4f8; z-index: 2; border-bottom: 1px solid #dfe3ec; padding: 8px 6px; text-align: center; vertical-align: bottom; }
+  thead th.rowhead { left: 0; z-index: 3; text-align: left; }
+  tbody th { position: sticky; left: 0; background: #f8fafc; z-index: 1; text-align: left; padding: 6px 10px; border-right: 1px solid #dfe3ec; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  td { text-align: center; padding: 4px 6px; border-bottom: 1px solid #eef1f6; border-right: 1px solid #eef1f6; }
+  tr:last-child td, tr:last-child th { border-bottom: none; }
+  input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #157f3d; }
+  input[type="checkbox"]:disabled { cursor: wait; opacity: 0.5; }
+  td.on { background: #e9f7ef; }
+  .count { display: block; font-size: 11px; color: #5b6478; font-weight: 400; margin-top: 2px; }
+  .rowcount { font-size: 11px; color: #5b6478; font-weight: 400; margin-left: 6px; }
+  .notice { padding: 16px; color: #5b6478; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="status"></div>
+  <div id="scroll"><div class="notice">Loading…</div></div>
+</div>
+<script>
+  // Junction edition: toggles write B1_Community_Check Bool cells (plain data
+  // writes — no RefList encoding hazards). B1's 13 RefList FORMULA columns
+  // follow automatically via Grist's formula engine. Missing junction rows for
+  // in-scope communities are created on toggle (and ensured on load).
+  // PAIRS: [junction Bool col, B1 RefList col label (for header titles)]
+  var FIELDS = [
+    { j: 'Community_self_governance', b: 'Community_self_governance', short: 'Self-governance' },
+    { j: 'Territorial_management', b: 'Territorial_management', short: 'Territorial mgmt' },
+    { j: 'Revitalisation_culture_knowledge', b: 'Revitalisation_of_culture_intergenerational_transmission_of_knowledge', short: 'Culture / knowledge' },
+    { j: 'Mobilisation_against_threats', b: 'Mobilisation_against_threats', short: 'Mobilisation' },
+    { j: 'Conflict_resolution_significant', b: 'Conflict_resolution_impacting_on_a_significant_portion_of_the_community', short: 'Conflict resolution' },
+    { j: 'Supporting_land_claims', b: 'Supporting_land_claims', short: 'Land claims' },
+    { j: 'Community_conservation_or_restoration', b: 'Community_conservation_or_restoration', short: 'Conservation' },
+    { j: 'Livelihoods_initiatives', b: 'Livelihoods_initiatives', short: 'Livelihoods' },
+    { j: 'Gender', b: 'Gender', short: 'Gender' },
+    { j: 'Mapping', b: 'Mapping', short: 'Mapping' },
+    { j: 'Supporting_community_participation_in_national_processes', b: 'Supporting_community_participation_in_national_processes', short: 'National processes' },
+    { j: 'Supporting_community_participation_in_international_processes', b: 'Supporting_community_participation_in_international_processes', short: 'Intl processes' },
+    { j: 'Food_systems', b: 'Food_systems', short: 'Food systems' },
+  ];
+  var LS_B1 = 'b1matrixJ_b1';
+  var POLL_MS = 4000;
+
+  var state = { b1Id: null, b1Row: null, subRow: null, sectionIds: [],
+    b1s: [], subs: [], juns: [], commById: {}, seq: 0, pending: 0, finger: '' };
+  var statusEl = document.getElementById('status');
+  var scrollEl = document.getElementById('scroll');
+  function showStatus(msg, cls) {
+    if (!msg) { statusEl.style.display = 'none'; statusEl.className = ''; statusEl.textContent = ''; return; }
+    statusEl.style.display = 'block'; statusEl.className = cls || 'busy'; statusEl.textContent = msg;
+  }
+  function V(v) { return Array.isArray(v) ? v[v.length - 1] : v; }
+  function normId(v) { v = V(v); return Array.isArray(v) ? v[v.length - 1] : v; }
+  function rowsOf(t) {
+    t = t || {}; var out = [], n = (t.id || []).length;
+    for (var i = 0; i < n; i++) {
+      var r = { id: t.id[i] };
+      Object.keys(t).forEach(function (c) { if (c !== 'id') r[c] = t[c][i]; });
+      out.push(r);
+    }
+    return out;
+  }
+  function asList(v) {
+    if (v === null || v === undefined) return [];
+    if (Array.isArray(v)) return ((v[0] === 'L') ? v.slice(1) : v).map(normId).filter(function (x) { return x !== null && x !== undefined && x !== ''; }).map(Number).filter(function (x) { return isFinite(x) && x > 0; });
+    var n = Number(normId(v));
+    return (isFinite(n) && n > 0) ? [n] : [];
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  function fetchAll() {
+    var my = ++state.seq;
+    return Promise.all([
+      grist.docApi.fetchTable('B1_Work_on_the_ground'),
+      grist.docApi.fetchTable('Submission'),
+      grist.docApi.fetchTable('Community'),
+      grist.docApi.fetchTable('B1_Community_Check'),
+    ]).then(function (ts) {
+      if (my !== state.seq) return null;
+      return { b1: rowsOf(ts[0]), sub: rowsOf(ts[1]), com: rowsOf(ts[2]), jun: rowsOf(ts[3]) };
+    });
+  }
+
+  function myJun(data) {
+    return data.jun.filter(function (r) { return Number(normId(r.B1)) === state.b1Id; });
+  }
+
+  function fingerprint(data) {
+    var rows = myJun(data).map(function (r) {
+      var o = [Number(normId(r.Community))];
+      FIELDS.forEach(function (f) { o.push(r[f.j] ? 1 : 0); });
+      return o.join(',');
+    }).sort().join('|');
+    var subs = data.sub.map(function (s) { return s.id + '=' + asList(s.Communities).join('+'); }).join('|');
+    var coms = data.com.map(function (r) { return r.id + '=' + String(V(r.Name) || ''); }).join('|');
+    var b1s = data.b1.map(function (b) { return b.id + ':' + Number(normId(b.Submission)); }).join('|');
+    return rows + '#' + subs + '#' + coms + '#' + b1s;
+  }
+
+  function adoptFromSection() {
+    var ids = state.sectionIds.slice().sort(function (a, b) { return a - b; });
+    if (!ids.length) { state.b1Id = null; return; }
+    var stored = Number(lsGet(LS_B1));
+    state.b1Id = ids.indexOf(stored) !== -1 ? stored : ids[0];
+    lsSet(LS_B1, String(state.b1Id));
+  }
+
+  function syncRows(data) {
+    var byId = {};
+    data.com.forEach(function (r) { byId[r.id] = String(V(r.Name) || ('#' + r.id)); });
+    state.commById = byId;
+    state.b1s = data.b1; state.subs = data.sub; state.juns = data.jun;
+    state.b1Row = null; state.subRow = null;
+    data.b1.forEach(function (b) { if (b.id === state.b1Id) state.b1Row = b; });
+    if (state.b1Row) {
+      var sid = Number(normId(state.b1Row.Submission));
+      data.sub.forEach(function (s) { if (s.id === sid) state.subRow = s; });
+    }
+  }
+
+  function scope(data) {
+    var inScope = {};
+    if (state.subRow) asList(state.subRow.Communities).forEach(function (c) { inScope[c] = 1; });
+    myJun(data).forEach(function (r) { inScope[Number(normId(r.Community))] = 1; });
+    return Object.keys(inScope).map(Number).filter(function (c) { return state.commById[c]; }).sort(function (a, b) { return a - b; });
+  }
+
+  function load(announce) {
+    if (announce) showStatus('Loading…', 'busy');
+    return fetchAll().then(function (data) {
+      if (!data) return;
+      state.finger = fingerprint(data);
+      syncRows(data);
+      render(data);
+    }).catch(function (e) {
+      showStatus('Load failed: ' + ((e && e.message) || e), 'err');
+    });
+  }
+
+  function poll() {
+    if (document.hidden || state.pending > 0) return;
+    fetchAll().then(function (data) {
+      if (!data) return;
+      var f = fingerprint(data);
+      if (f === state.finger) return;
+      state.finger = f;
+      if (state.b1Id !== null && state.sectionIds.indexOf(state.b1Id) === -1) adoptFromSection();
+      syncRows(data);
+      render(data);
+    }).catch(function () {});
+  }
+
+  function render(data) {
+    if (!state.b1Row || !state.subRow) {
+      showStatus('');
+      scrollEl.innerHTML = '<div class="notice">Select a submission to show its B1 matrix.</div>';
+      return;
+    }
+    showStatus('');
+    var cids = scope(data);
+    var byCom = {};
+    myJun(data).forEach(function (r) { byCom[Number(normId(r.Community))] = r; });
+    var html = '<table><thead><tr><th class="rowhead">Community</th>';
+    FIELDS.forEach(function (f) {
+      var n = cids.filter(function (cid) { return byCom[cid] && !!byCom[cid][f.j]; }).length;
+      html += '<th title="' + f.b + '">' + f.short + '<span class="count">' + n + '</span></th>';
+    });
+    html += '</tr></thead><tbody>';
+    if (!cids.length) html += '<tr><td colspan="' + (FIELDS.length + 1) + '" style="text-align:left;padding:12px;color:#5b6478">No communities in this submission yet.</td></tr>';
+    cids.forEach(function (cid) {
+      var name = state.commById[cid] || ('#' + cid);
+      var row = byCom[cid];
+      var rowN = FIELDS.reduce(function (a, f) { return a + ((row && !!row[f.j]) ? 1 : 0); }, 0);
+      html += '<tr><th>' + escapeHtml(name) + '<span class="rowcount">' + rowN + '/' + FIELDS.length + '</span></th>';
+      FIELDS.forEach(function (f) {
+        var on = !!(row && !!row[f.j]);
+        html += '<td class="' + (on ? 'on' : '') + '"><input type="checkbox" data-field="' + f.j + '" data-cid="' + cid + '"' + (on ? ' checked' : '') + ' aria-label="' + escapeHtml(name + ' — ' + f.short) + '"></td>';
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    scrollEl.innerHTML = html;
+    Array.prototype.forEach.call(scrollEl.querySelectorAll('input[type="checkbox"]'), function (box) {
+      box.addEventListener('change', function () {
+        toggle(box.getAttribute('data-field'), Number(box.getAttribute('data-cid')), box.checked, box);
+      });
+    });
+  }
+
+  function toggle(jfield, cid, checked, box) {
+    if (!state.b1Id) return;
+    box.disabled = true;
+    state.pending++;
+    fetchAll().then(function (data) {
+      if (!data) throw new Error('reload failed');
+      var row = null;
+      data.jun.forEach(function (r) {
+        if (Number(normId(r.B1)) === state.b1Id && Number(normId(r.Community)) === cid) row = r;
+      });
+      var fields = {};
+      fields[jfield] = !!checked; // plain Bool write — no encoding hazards
+      if (row) {
+        return grist.docApi.applyUserActions([['UpdateRecord', 'B1_Community_Check', row.id, fields]]);
+      }
+      var rec = { B1: state.b1Id, Community: cid, Submission: state.subRow ? state.subRow.id : null };
+      FIELDS.forEach(function (f) { rec[f.j] = false; });
+      rec[jfield] = !!checked;
+      return grist.docApi.applyUserActions([['AddRecord', 'B1_Community_Check', null, rec]]);
+    }).then(fetchAll).then(function (data) {
+      state.pending--;
+      if (!data) { box.disabled = false; box.checked = !checked; return; }
+      state.finger = fingerprint(data);
+      syncRows(data);
+      render(data); // B1 RefList formulas recalc automatically in Grist
+    }).catch(function (e) {
+      state.pending--;
+      box.disabled = false;
+      box.checked = !checked;
+      showStatus('Write failed: ' + ((e && e.message) || e), 'err');
+    });
+  }
+
+  grist.ready({ requiredAccess: 'full', allowSelectBy: true });
+  grist.onRecords(function (records) {
+    state.sectionIds = (records || []).map(function (r) { return r.id; }).filter(function (x) { return x > 0; });
+    if (!state.sectionIds.length) { state.b1Id = null; load(false); return; }
+    if (state.sectionIds.indexOf(state.b1Id) === -1) adoptFromSection();
+    load(false);
+  });
+  grist.onRecord(function (r) {
+    if (r && r.id && state.sectionIds.indexOf(r.id) !== -1 && r.id !== state.b1Id) {
+      state.b1Id = r.id;
+      lsSet(LS_B1, String(r.id));
+      load(false);
+    }
+  });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+  window.addEventListener('focus', poll);
+  setInterval(poll, POLL_MS);
+  load(true);
+</script>
+</body>
+</html>

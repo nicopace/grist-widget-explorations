@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B1 Sync — junction ↔ RefLists</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+  html, body { margin: 0; font-family: -apple-system, "Segoe UI", sans-serif; background: #fff; color: #1a2333; }
+  #bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 12px; flex-wrap: wrap; }
+  #bar select { font-size: 12px; padding: 4px 6px; border-radius: 6px; border: 1px solid #cfd5e1; max-width: 220px; }
+  #bar button { font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid #cfd5e1; background: #fff; cursor: pointer; }
+  #bar button:hover:not(:disabled) { background: #f2f4f8; }
+  #bar button:disabled { opacity: 0.5; cursor: wait; }
+  #push { border-color: #157f3d !important; color: #157f3d; font-weight: 600; }
+  #status { color: #5b6478; }
+  #status.err { color: #b42318; font-weight: 600; }
+  #status.ok { color: #157f3d; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <select id="b1pick" title="B1 record to sync"><option value="">Loading…</option></select>
+  <button id="pull" title="Rebuild junction rows/checkboxes from the 13 RefLists (deletes out-of-scope rows)">↓ Pull from RefLists</button>
+  <button id="push" title="Write junction checkboxes into the 13 RefLists">↑ Push to RefLists</button>
+  <span id="status">Connecting…</span>
+</div>
+<script>
+  // Mini sync widget: pull on load, push on click.
+  // RefList writes use canonical ["L", ...ids] / ["L"] — plain [] or null via
+  // applyUserActions corrupts the cell (stored marshalled KeyError).
+  var PAIRS = [
+    ['Community_self_governance', 'Community_self_governance'],
+    ['Territorial_management', 'Territorial_management'],
+    ['Revitalisation_culture_knowledge', 'Revitalisation_of_culture_intergenerational_transmission_of_knowledge'],
+    ['Mobilisation_against_threats', 'Mobilisation_against_threats'],
+    ['Conflict_resolution_significant', 'Conflict_resolution_impacting_on_a_significant_portion_of_the_community'],
+    ['Supporting_land_claims', 'Supporting_land_claims'],
+    ['Community_conservation_or_restoration', 'Community_conservation_or_restoration'],
+    ['Livelihoods_initiatives', 'Livelihoods_initiatives'],
+    ['Gender', 'Gender'],
+    ['Mapping', 'Mapping'],
+    ['Supporting_community_participation_in_national_processes', 'Supporting_community_participation_in_national_processes'],
+    ['Supporting_community_participation_in_international_processes', 'Supporting_community_participation_in_international_processes'],
+    ['Food_systems', 'Food_systems'],
+  ];
+  var LS_B1 = 'b1sync_b1';
+
+  var state = { b1Id: null, b1s: [], seq: 0, busy: false, autoPulled: false };
+  var b1pick = document.getElementById('b1pick');
+  var pullBtn = document.getElementById('pull');
+  var pushBtn = document.getElementById('push');
+  var statusEl = document.getElementById('status');
+  function status(msg, cls) { statusEl.textContent = msg; statusEl.className = cls || ''; }
+  function setBusy(b) {
+    state.busy = b;
+    pullBtn.disabled = b; pushBtn.disabled = b; b1pick.disabled = b;
+  }
+  function V(v) { return Array.isArray(v) ? v[v.length - 1] : v; }
+  function normId(v) { v = V(v); return Array.isArray(v) ? v[v.length - 1] : v; }
+  function rowsOf(t) {
+    t = t || {}; var out = [], n = (t.id || []).length;
+    for (var i = 0; i < n; i++) {
+      var r = { id: t.id[i] };
+      Object.keys(t).forEach(function (c) { if (c !== 'id') r[c] = t[c][i]; });
+      out.push(r);
+    }
+    return out;
+  }
+  function asList(v) {
+    if (v === null || v === undefined) return [];
+    if (Array.isArray(v)) return ((v[0] === 'L') ? v.slice(1) : v).map(normId).filter(function (x) { return x !== null && x !== undefined && x !== ''; }).map(Number).filter(function (x) { return isFinite(x) && x > 0; });
+    var n = Number(normId(v));
+    return (isFinite(n) && n > 0) ? [n] : [];
+  }
+  function sameSet(a, b) {
+    if (a.length !== b.length) return false;
+    var s = {};
+    a.forEach(function (x) { s[x] = 1; });
+    return b.every(function (x) { return s[x]; });
+  }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function subLabel(s) { return 'B1 #' + s.b1 + ' · ' + String(V(s.subName) || ('Submission #' + s.sub)); }
+
+  function fetchAll() {
+    var my = ++state.seq;
+    return Promise.all([
+      grist.docApi.fetchTable('B1_Work_on_the_ground'),
+      grist.docApi.fetchTable('Submission'),
+      grist.docApi.fetchTable('Community'),
+      grist.docApi.fetchTable('B1_Community_Check'),
+    ]).then(function (ts) {
+      if (my !== state.seq) return null;
+      return { b1: rowsOf(ts[0]), sub: rowsOf(ts[1]), com: rowsOf(ts[2]), jun: rowsOf(ts[3]) };
+    });
+  }
+
+  function contextOptions(data) {
+    // One option per B1 row, labelled with its submission.
+    var subById = {};
+    data.sub.forEach(function (s) { subById[s.id] = s; });
+    return data.b1.slice().sort(function (a, b) { return a.id - b.id; }).map(function (b) {
+      var sid = Number(normId(b.Submission));
+      var s = subById[sid];
+      return { b1: b.id, sub: sid,
+        subName: s ? String(V(s.Submission_name) || V(s.Date_of_completion) || ('Submission #' + sid)) : ('Submission #' + sid) };
+    });
+  }
+
+  function populatePicker(data, sectionIds) {
+    var opts = contextOptions(data);
+    // Prefer linked-section cursor, then last used, then first.
+    var want = null;
+    if (sectionIds && sectionIds.length === 1) want = sectionIds[0];
+    var stored = Number(lsGet(LS_B1));
+    if (!want && stored > 0 && opts.some(function (o) { return o.b1 === stored; })) want = stored;
+    if (!want && opts.length) want = opts[0].b1;
+    b1pick.innerHTML = '';
+    if (!opts.length) { b1pick.innerHTML = '<option value="">No B1 records</option>'; state.b1Id = null; return; }
+    opts.forEach(function (o) {
+      var el = document.createElement('option');
+      el.value = String(o.b1); el.textContent = subLabel(o);
+      b1pick.appendChild(el);
+    });
+    state.b1Id = want;
+    b1pick.value = String(want);
+    lsSet(LS_B1, String(want));
+  }
+
+  function scopeOf(data, b1Id) {
+    var b = null;
+    data.b1.forEach(function (r) { if (r.id === b1Id) b = r; });
+    if (!b) return { b1: null, sub: null, scope: [] };
+    var sid = Number(normId(b.Submission));
+    var s = null;
+    data.sub.forEach(function (r) { if (r.id === sid) s = r; });
+    var scope = s ? asList(s.Communities) : [];
+    if (!scope.length) {
+      var seen = {};
+      PAIRS.forEach(function (p) { asList(b[p[1]]).forEach(function (c) { seen[c] = 1; }); });
+      scope = Object.keys(seen).map(Number);
+    }
+    return { b1: b, sub: s, scope: scope };
+  }
+
+  function doPull(auto) {
+    if (state.busy || !state.b1Id) return Promise.resolve();
+    setBusy(true);
+    status((auto ? 'Auto-pull' : 'Pull') + ' from RefLists…');
+    return fetchAll().then(function (data) {
+      if (!data) { setBusy(false); return; }
+      var ctx = scopeOf(data, state.b1Id);
+      if (!ctx.b1) { setBusy(false); status('B1 #' + state.b1Id + ' not found.', 'err'); return; }
+      var inScope = {};
+      ctx.scope.forEach(function (c) { inScope[c] = 1; });
+      var member = {}; // b1field -> {cid:1}
+      PAIRS.forEach(function (p) {
+        var s = {};
+        asList(ctx.b1[p[1]]).forEach(function (c) { s[c] = 1; });
+        member[p[1]] = s;
+      });
+      var rows = data.jun.filter(function (r) { return Number(normId(r.B1)) === state.b1Id; });
+      var byCom = {};
+      rows.forEach(function (r) { byCom[Number(normId(r.Community))] = r; });
+      var actions = [], added = 0, updated = 0, removed = 0;
+      ctx.scope.forEach(function (cid) {
+        var want = {};
+        PAIRS.forEach(function (p) { want[p[0]] = !!member[p[1]][cid]; });
+        var ex = byCom[cid];
+        if (!ex) {
+          var f = { B1: state.b1Id, Community: cid, Submission: ctx.sub ? ctx.sub.id : null };
+          PAIRS.forEach(function (p) { f[p[0]] = want[p[0]]; });
+          actions.push(['AddRecord', 'B1_Community_Check', null, f]);
+          added++;
+        } else {
+          var diff = {};
+          PAIRS.forEach(function (p) {
+            if (!!ex[p[0]] !== want[p[0]]) diff[p[0]] = want[p[0]];
+          });
+          if (Object.keys(diff).length) { actions.push(['UpdateRecord', 'B1_Community_Check', ex.id, diff]); updated++; }
+        }
+      });
+      rows.forEach(function (r) {
+        if (!inScope[Number(normId(r.Community))]) { actions.push(['RemoveRecord', 'B1_Community_Check', r.id]); removed++; }
+      });
+      if (!actions.length) { setBusy(false); status('Already in sync — nothing to pull.', 'ok'); return; }
+      return grist.docApi.applyUserActions(actions).then(function () {
+        setBusy(false);
+        status('Pulled: ' + added + ' rows added, ' + updated + ' updated, ' + removed + ' removed.', 'ok');
+      });
+    }).catch(function (e) {
+      setBusy(false);
+      status('Pull failed: ' + ((e && e.message) || e), 'err');
+    });
+  }
+
+  function doPush() {
+    if (state.busy || !state.b1Id) return;
+    setBusy(true);
+    status('Pushing to RefLists…');
+    fetchAll().then(function (data) {
+      if (!data) { setBusy(false); return; }
+      var ctx = scopeOf(data, state.b1Id);
+      if (!ctx.b1) { setBusy(false); status('B1 #' + state.b1Id + ' not found.', 'err'); return; }
+      var rows = data.jun.filter(function (r) { return Number(normId(r.B1)) === state.b1Id; });
+      var fields = {};
+      PAIRS.forEach(function (p) {
+        var ids = rows.filter(function (r) { return !!r[p[0]]; }).map(function (r) { return Number(normId(r.Community)); }).sort(function (a, b) { return a - b; });
+        if (!sameSet(ids, asList(ctx.b1[p[1]]))) fields[p[1]] = ['L'].concat(ids);
+      });
+      var names = Object.keys(fields);
+      if (!names.length) { setBusy(false); status('Already in sync — nothing to push.', 'ok'); return; }
+      return grist.docApi.applyUserActions([['UpdateRecord', 'B1_Work_on_the_ground', state.b1Id, fields]])
+        .then(fetchAll).then(function (d2) {
+          setBusy(false);
+          if (!d2) return;
+          var b2 = null;
+          d2.b1.forEach(function (r) { if (r.id === state.b1Id) b2 = r; });
+          var bad = names.filter(function (f) {
+            var want = fields[f].slice(1);
+            return !b2 || !sameSet(asList(b2[f]), want);
+          });
+          status(bad.length ? 'Push NOT verified for: ' + bad.join(', ') : 'Pushed ' + names.length + ' field(s): ' + names.join(', '), bad.length ? 'err' : 'ok');
+        });
+    }).catch(function (e) {
+      setBusy(false);
+      status('Push failed: ' + ((e && e.message) || e), 'err');
+    });
+  }
+
+  b1pick.addEventListener('change', function () {
+    var v = Number(b1pick.value);
+    if (v > 0) { state.b1Id = v; lsSet(LS_B1, String(v)); status(''); }
+  });
+  pullBtn.addEventListener('click', function () { doPull(false); });
+  pushBtn.addEventListener('click', function () { doPush(); });
+
+  grist.ready({ requiredAccess: 'full' });
+  var sectionIds = null;
+  grist.onRecords(function (records) {
+    sectionIds = (records || []).map(function (r) { return r.id; });
+    fetchAll().then(function (data) {
+      if (!data) return;
+      populatePicker(data, sectionIds);
+      status('');
+      if (!state.autoPulled && state.b1Id) { state.autoPulled = true; doPull(true); }
+    }).catch(function (e) { status('Load failed: ' + ((e && e.message) || e), 'err'); });
+  });
+  grist.onRecord(function (r) {
+    if (r && r.id && r.id !== state.b1Id) {
+      state.b1Id = r.id;
+      lsSet(LS_B1, String(r.id));
+      b1pick.value = String(r.id);
+      status('');
+    }
+  });
+  status('Loading…');
+</script>
+</body>
+</html>

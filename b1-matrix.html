@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B1 Matrix v3</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; font-family: -apple-system, "Segoe UI", sans-serif; background: #fff; color: #1a2333; }
+  #wrap { padding: 0; box-sizing: border-box; }
+  #status { display: none; font-size: 12px; color: #5b6478; padding: 10px 12px; }
+  #status.err { display: block; color: #b42318; font-weight: 600; }
+  #status.busy { display: block; }
+  #scroll { overflow: auto; max-height: 100vh; }
+  table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 12px; }
+  thead th { position: sticky; top: 0; background: #f2f4f8; z-index: 2; border-bottom: 1px solid #dfe3ec; padding: 8px 6px; text-align: center; vertical-align: bottom; }
+  thead th.rowhead { left: 0; z-index: 3; text-align: left; }
+  tbody th { position: sticky; left: 0; background: #f8fafc; z-index: 1; text-align: left; padding: 6px 10px; border-right: 1px solid #dfe3ec; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  td { text-align: center; padding: 4px 6px; border-bottom: 1px solid #eef1f6; border-right: 1px solid #eef1f6; }
+  tr:last-child td, tr:last-child th { border-bottom: none; }
+  input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #157f3d; }
+  input[type="checkbox"]:disabled { cursor: wait; opacity: 0.5; }
+  td.on { background: #e9f7ef; }
+  .count { display: block; font-size: 11px; color: #5b6478; font-weight: 400; margin-top: 2px; }
+  .rowcount { font-size: 11px; color: #5b6478; font-weight: 400; margin-left: 6px; }
+  .notice { padding: 16px; color: #5b6478; font-size: 12px; }
+  .notice select, .notice button { font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid #cfd5e1; background: #fff; }
+  .notice button.primary { background: #157f3d; border-color: #157f3d; color: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="status"></div>
+  <div id="scroll"><div class="notice">Loading…</div></div>
+</div>
+<script>
+  // v3: table only. Context comes from the page link (Submission picker -> this
+  // widget, child_of via B1.Submission). Live-reloads on any Grist change.
+  // RefList writes use canonical ["L", ...ids] / ["L"] encoding — plain [] or
+  // null via applyUserActions corrupts the cell (marshalled KeyError).
+  var FIELDS = [
+    { id: 'Community_self_governance', short: 'Self-governance' },
+    { id: 'Territorial_management', short: 'Territorial mgmt' },
+    { id: 'Revitalisation_of_culture_intergenerational_transmission_of_knowledge', short: 'Culture / knowledge' },
+    { id: 'Mobilisation_against_threats', short: 'Mobilisation' },
+    { id: 'Conflict_resolution_impacting_on_a_significant_portion_of_the_community', short: 'Conflict resolution' },
+    { id: 'Supporting_land_claims', short: 'Land claims' },
+    { id: 'Community_conservation_or_restoration', short: 'Conservation' },
+    { id: 'Livelihoods_initiatives', short: 'Livelihoods' },
+    { id: 'Gender', short: 'Gender' },
+    { id: 'Mapping', short: 'Mapping' },
+    { id: 'Supporting_community_participation_in_national_processes', short: 'National processes' },
+    { id: 'Supporting_community_participation_in_international_processes', short: 'Intl processes' },
+    { id: 'Food_systems', short: 'Food systems' },
+  ];
+  var LS_B1 = 'b1matrix_b1';
+  var POLL_MS = 4000;
+
+  var state = { b1Id: null, b1Row: null, subRow: null, sectionIds: [],
+    subs: [], b1s: [], commById: {}, seq: 0, pending: 0, finger: '' };
+  var statusEl = document.getElementById('status');
+  var scrollEl = document.getElementById('scroll');
+  function showStatus(msg, cls) {
+    if (!msg) { statusEl.style.display = 'none'; statusEl.className = ''; statusEl.textContent = ''; return; }
+    statusEl.style.display = 'block'; statusEl.className = cls || 'busy'; statusEl.textContent = msg;
+  }
+  function V(v) { return Array.isArray(v) ? v[v.length - 1] : v; }
+  function normId(v) { v = V(v); return Array.isArray(v) ? v[v.length - 1] : v; }
+  function rowsOf(t) {
+    t = t || {}; var out = [], n = (t.id || []).length;
+    for (var i = 0; i < n; i++) {
+      var r = { id: t.id[i] };
+      Object.keys(t).forEach(function (c) { if (c !== 'id') r[c] = t[c][i]; });
+      out.push(r);
+    }
+    return out;
+  }
+  function asList(v) {
+    if (v === null || v === undefined) return [];
+    if (Array.isArray(v)) return ((v[0] === 'L') ? v.slice(1) : v).map(normId).filter(function (x) { return x !== null && x !== undefined && x !== ''; }).map(Number).filter(function (x) { return isFinite(x) && x > 0; });
+    var n = Number(normId(v));
+    return (isFinite(n) && n > 0) ? [n] : [];
+  }
+  function sameSet(a, b) {
+    if (a.length !== b.length) return false;
+    var s = {};
+    a.forEach(function (x) { s[x] = 1; });
+    return b.every(function (x) { return s[x]; });
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  function fingerprint(b1Rows, subRows, comRows) {
+    var b = b1Rows.filter(function (r) { return state.sectionIds.indexOf(r.id) !== -1; }).map(function (r) {
+      var o = [r.id, Number(normId(r.Submission))];
+      FIELDS.forEach(function (f) { o.push(asList(r[f.id]).join('+')); });
+      return o.join(':');
+    }).join('|');
+    var s = subRows.map(function (r) { return r.id + '=' + asList(r.Communities).join('+') + '~' + String(V(r.Submission_name) || ''); }).join('|');
+    var c = comRows.map(function (r) { return r.id + '=' + String(V(r.Name) || ''); }).join('|');
+    return b + '#' + s + '#' + c;
+  }
+
+  function fetchAll() {
+    var my = ++state.seq;
+    return Promise.all([
+      grist.docApi.fetchTable('B1_Work_on_the_ground'),
+      grist.docApi.fetchTable('Submission'),
+      grist.docApi.fetchTable('Community'),
+    ]).then(function (ts) {
+      if (my !== state.seq) return null; // stale
+      return { b1: rowsOf(ts[0]), sub: rowsOf(ts[1]), com: rowsOf(ts[2]) };
+    });
+  }
+
+  function adoptFromSection() {
+    // Prefer linked-section cursor, then last-used B1, then first row.
+    var ids = state.sectionIds.slice().sort(function (a, b) { return a - b; });
+    if (ids.length === 0) { state.b1Id = null; return; }
+    var stored = Number(lsGet(LS_B1));
+    state.b1Id = ids.indexOf(stored) !== -1 ? stored : ids[0];
+    lsSet(LS_B1, String(state.b1Id));
+  }
+
+  function syncRows(data) {
+    var byId = {};
+    data.com.forEach(function (r) { byId[r.id] = String(V(r.Name) || ('#' + r.id)); });
+    state.commById = byId;
+    state.subs = data.sub; state.b1s = data.b1;
+    state.b1Row = null; state.subRow = null;
+    data.b1.forEach(function (b) { if (b.id === state.b1Id) state.b1Row = b; });
+    if (state.b1Row) {
+      var sid = Number(normId(state.b1Row.Submission));
+      data.sub.forEach(function (s) { if (s.id === sid) state.subRow = s; });
+    }
+  }
+
+  function load(announce) {
+    if (announce) showStatus('Loading…', 'busy');
+    return fetchAll().then(function (data) {
+      if (!data) return;
+      state.finger = fingerprint(data.b1, data.sub, data.com);
+      syncRows(data);
+      render();
+    }).catch(function (e) {
+      showStatus('Load failed: ' + ((e && e.message) || e), 'err');
+    });
+  }
+
+  function poll() {
+    if (document.hidden || state.pending > 0) return;
+    fetchAll().then(function (data) {
+      if (!data) return;
+      var f = fingerprint(data.b1, data.sub, data.com);
+      if (f === state.finger) return; // unchanged: avoid DOM churn
+      state.finger = f;
+      // Re-resolve in case the section's row set changed; keep cursor if still valid.
+      if (state.b1Id !== null && state.sectionIds.indexOf(state.b1Id) === -1) adoptFromSection();
+      syncRows(data);
+      render();
+    }).catch(function () { /* stay silent on background failures */ });
+  }
+
+  function render() {
+    var b1 = state.b1Row, sub = state.subRow;
+    if (!b1 || !sub) { renderEmpty(); return; }
+    showStatus('');
+    var inScope = asList(sub.Communities);
+    if (inScope.length === 0) {
+      var seen = {};
+      FIELDS.forEach(function (f) { asList(b1[f.id]).forEach(function (c) { seen[c] = 1; }); });
+      inScope = Object.keys(seen).map(Number);
+    }
+    var colCounts = {};
+    FIELDS.forEach(function (f) {
+      var s = {};
+      asList(b1[f.id]).forEach(function (c) { s[c] = 1; });
+      colCounts[f.id] = s;
+    });
+    var html = '<table><thead><tr><th class="rowhead">Community</th>';
+    FIELDS.forEach(function (f) {
+      var n = Object.keys(colCounts[f.id]).length;
+      html += '<th title="' + f.id + '">' + f.short + '<span class="count">' + n + '</span></th>';
+    });
+    html += '</tr></thead><tbody>';
+    if (inScope.length === 0) {
+      html += '<tr><td colspan="' + (FIELDS.length + 1) + '" style="text-align:left;padding:12px;color:#5b6478">No communities in this submission yet.</td></tr>';
+    }
+    inScope.forEach(function (cid) {
+      var name = state.commById[cid] || ('#' + cid);
+      var rowN = FIELDS.reduce(function (a, f) { return a + (colCounts[f.id][cid] ? 1 : 0); }, 0);
+      html += '<tr><th>' + escapeHtml(name) + '<span class="rowcount">' + rowN + '/' + FIELDS.length + '</span></th>';
+      FIELDS.forEach(function (f) {
+        var on = !!colCounts[f.id][cid];
+        html += '<td class="' + (on ? 'on' : '') + '"><input type="checkbox" data-field="' + f.id + '" data-cid="' + cid + '"' + (on ? ' checked' : '') + ' aria-label="' + escapeHtml(name + ' — ' + f.short) + '"></td>';
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    scrollEl.innerHTML = html;
+    Array.prototype.forEach.call(scrollEl.querySelectorAll('input[type="checkbox"]'), function (box) {
+      box.addEventListener('change', function () {
+        toggle(box.getAttribute('data-field'), Number(box.getAttribute('data-cid')), box.checked, box);
+      });
+    });
+  }
+
+  function renderEmpty() {
+    showStatus('');
+    var hasFilter = state.sectionIds.length > 0;
+    var html = '<div class="notice">' + (hasFilter
+      ? 'No B1 record in this selection.'
+      : 'Select a submission in the picker above to show its B1 matrix.') + '<br><br>'
+      + '<label>Submission: <select id="emptysub"></select></label> '
+      + '<button id="createB1" class="primary">Create B1 record</button></div>';
+    scrollEl.innerHTML = html;
+    var sel = document.getElementById('emptysub');
+    state.subs.slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (s) {
+      var o = document.createElement('option');
+      o.value = String(s.id);
+      o.textContent = String(V(s.Submission_name) || V(s.Date_of_completion) || ('Submission #' + s.id));
+      sel.appendChild(o);
+    });
+    var btn = document.getElementById('createB1');
+    if (btn) btn.addEventListener('click', function () {
+      var sid = Number(sel.value);
+      if (!(sid > 0)) { showStatus('Pick a submission first.', 'err'); return; }
+      showStatus('Creating B1 record…', 'busy');
+      state.pending++;
+      grist.docApi.applyUserActions([['AddRecord', 'B1_Work_on_the_ground', null, { Submission: sid }]])
+        .then(function () {
+          // Mirror Submission.B1 when empty (matches existing data pattern).
+          return grist.docApi.fetchTable('Submission');
+        })
+        .then(function (t) {
+          var sub = rowsOf(t).filter(function (r) { return r.id === sid; })[0];
+          if (sub && !Number(normId(sub.B1))) {
+            var fresh = null;
+            return fetchAll().then(function (data) {
+              if (data) data.b1.forEach(function (b) { if (Number(normId(b.Submission)) === sid) fresh = b.id; });
+              if (fresh) return grist.docApi.applyUserActions([['UpdateRecord', 'Submission', sid, { B1: fresh }]]).catch(function () {});
+            });
+          }
+        })
+        .then(function () { state.pending--; return load(false); })
+        .catch(function (e) { state.pending--; showStatus('Create failed: ' + ((e && e.message) || e), 'err'); });
+    });
+  }
+
+  function toggle(field, cid, checked, box) {
+    var b1 = state.b1Row;
+    if (!b1) return;
+    box.disabled = true;
+    state.pending++;
+    var cur = asList(b1[field]);
+    var next;
+    if (checked) {
+      next = cur.slice();
+      if (next.indexOf(cid) === -1) next.push(cid);
+      next.sort(function (a, b) { return a - b; });
+    } else {
+      next = cur.filter(function (x) { return x !== cid; });
+    }
+    // Canonical RefList encoding for applyUserActions: ["L", ...ids], ["L"] when empty.
+    // Plain [] or null corrupts the cell (stored marshalled KeyError).
+    var payload = ['L'].concat(next);
+    var fields = {};
+    fields[field] = payload;
+    grist.docApi.applyUserActions([['UpdateRecord', 'B1_Work_on_the_ground', b1.id, fields]])
+      .then(fetchAll)
+      .then(function (data) {
+        state.pending--;
+        if (!data) { box.disabled = false; box.checked = !checked; return; }
+        state.finger = fingerprint(data.b1, data.sub, data.com);
+        syncRows(data);
+        // Verify the write landed; surface corruption loudly instead of silently.
+        var got = state.b1Row ? asList(state.b1Row[field]) : null;
+        if (!got || !sameSet(got, next)) {
+          showStatus('Write not applied for ' + field + ' — reloaded last saved state.', 'err');
+        }
+        render();
+      })
+      .catch(function (e) {
+        state.pending--;
+        box.disabled = false;
+        box.checked = !checked;
+        showStatus('Write failed: ' + ((e && e.message) || e), 'err');
+      });
+  }
+
+  grist.ready({ requiredAccess: 'full', allowSelectBy: true });
+  grist.onRecords(function (records) {
+    // This section's filtered B1 rows (driven by the page's Submission picker).
+    var ids = (records || []).map(function (r) { return r.id; }).filter(function (x) { return x > 0; });
+    state.sectionIds = ids;
+    var cur = state.b1Id;
+    if (ids.length === 0) { state.b1Id = null; load(false); return; }
+    if (ids.indexOf(cur) === -1) adoptFromSection();
+    load(false);
+  });
+  grist.onRecord(function (r) {
+    if (r && r.id && state.sectionIds.indexOf(r.id) !== -1 && r.id !== state.b1Id) {
+      state.b1Id = r.id;
+      lsSet(LS_B1, String(r.id));
+      load(false);
+    }
+  });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+  window.addEventListener('focus', poll);
+  setInterval(poll, POLL_MS);
+  load(true);
+</script>
+</body>
+</html>
