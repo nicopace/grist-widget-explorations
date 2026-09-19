@@ -19,17 +19,17 @@ INSERT INTO B1_Work_on_the_ground VALUES (2, '[2]', '[2,4]', '[2]', NULL, NULL, 
 
 -- B2_Community_Check
 CREATE TABLE B2_Community_Check (id, B2, Community, Submission, Oil_palm, Forestry_concessions, Minerals_and_energy, Carbon_and_biodiversity_markets, Conservation_areas, Other_industrial_agriculture, Other_local_small_scale_agriculture, Other_encroachment_by_neighbours_or_external_parties, Armed_conflict_actors, Infrastructure_roads_railways_energy_, Key, Duplicate);
-INSERT INTO B2_Community_Check VALUES (1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
-INSERT INTO B2_Community_Check VALUES (2, 1, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (2, 1, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 INSERT INTO B2_Community_Check VALUES (3, 1, 3, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, '', '');
-INSERT INTO B2_Community_Check VALUES (4, 1, 4, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (4, 1, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 INSERT INTO B2_Community_Check VALUES (5, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, '', '');
 INSERT INTO B2_Community_Check VALUES (6, 2, 4, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 INSERT INTO B2_Community_Check VALUES (7, 2, 5, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, '', '');
 
 -- B2_Threat
 CREATE TABLE B2_Threat (id, Oil_palm, Forestry_concessions, Minerals_and_energy, Carbon_and_biodiversity_markets, Conservation_areas, Other_industrial_agriculture, Other_local_small_scale_agriculture, Other_encroachment_by_neighbours_or_external_parties, Armed_conflict_actors, Infrastructure_roads_railways_energy_, Submission_B2);
-INSERT INTO B2_Threat VALUES (1, '[1]', '[2]', '[3]', NULL, '[4]', NULL, NULL, NULL, NULL, NULL, 1);
+INSERT INTO B2_Threat VALUES (1, '[1,2]', '[1,2]', '[1,3]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1);
 INSERT INTO B2_Threat VALUES (2, '[2]', '[4]', '[5]', NULL, NULL, NULL, NULL, NULL, '[2]', NULL, 2);
 
 -- B4_Participation_per_group
