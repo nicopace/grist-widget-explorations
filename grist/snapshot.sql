@@ -17,8 +17,20 @@ CREATE TABLE B1_Work_on_the_ground (id, Community_self_governance, Territorial_m
 INSERT INTO B1_Work_on_the_ground VALUES (1, '[1,2,3]', '[1,2,3]', '[1,2,3]', NULL, '[1,2,3]', '[1,2,3,4]', '[4]', '[3]', '[2,4]', '[1,3]', NULL, NULL, '[1]', '', 1, '2026 - Semester 1 - Test Team');
 INSERT INTO B1_Work_on_the_ground VALUES (2, '[2]', '[2,4]', '[2]', NULL, NULL, NULL, NULL, NULL, '[4]', '[2,5]', NULL, NULL, NULL, '', 2, '2026 - Semester 2 - Test Team');
 
+-- B2_Community_Check
+CREATE TABLE B2_Community_Check (id, B2, Community, Submission, Oil_palm, Forestry_concessions, Minerals_and_energy, Carbon_and_biodiversity_markets, Conservation_areas, Other_industrial_agriculture, Other_local_small_scale_agriculture, Other_encroachment_by_neighbours_or_external_parties, Armed_conflict_actors, Infrastructure_roads_railways_energy_, Key, Duplicate);
+INSERT INTO B2_Community_Check VALUES (1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (2, 1, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (3, 1, 3, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (4, 1, 4, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (5, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (6, 2, 4, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (7, 2, 5, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, '', '');
+
 -- B2_Threat
 CREATE TABLE B2_Threat (id, Oil_palm, Forestry_concessions, Minerals_and_energy, Carbon_and_biodiversity_markets, Conservation_areas, Other_industrial_agriculture, Other_local_small_scale_agriculture, Other_encroachment_by_neighbours_or_external_parties, Armed_conflict_actors, Infrastructure_roads_railways_energy_, Submission_B2);
+INSERT INTO B2_Threat VALUES (1, '[1]', '[2]', '[3]', NULL, '[4]', NULL, NULL, NULL, NULL, NULL, 1);
+INSERT INTO B2_Threat VALUES (2, '[2]', '[4]', '[5]', NULL, NULL, NULL, NULL, NULL, '[2]', NULL, 2);
 
 -- B4_Participation_per_group
 CREATE TABLE B4_Participation_per_group (id, Submission, Women, Men, Transgender_other_gender_identities_if_applicable_, Youth, Elders);
@@ -157,8 +169,8 @@ CREATE TABLE Publication (id, A, B, C);
 
 -- Submission
 CREATE TABLE Submission (id, Period, Team, Team_members, Date_of_completion, Submission_name, Link_to_Submission, A_Completed, B_completed, Communities, Partners, B1, B2);
-INSERT INTO Submission VALUES (1, 1, 1, NULL, 1789430400, '2026 - Semester 1 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r1', 0, 0, '[1,2,3,4]', NULL, 1, 0);
-INSERT INTO Submission VALUES (2, 2, 1, NULL, 1789430400, '2026 - Semester 2 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r2', 0, 0, '[2,4,5]', NULL, 2, 0);
+INSERT INTO Submission VALUES (1, 1, 1, NULL, 1789430400, '2026 - Semester 1 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r1', 0, 0, '[1,2,3,4]', NULL, 1, 1);
+INSERT INTO Submission VALUES (2, 2, 1, NULL, 1789430400, '2026 - Semester 2 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r2', 0, 0, '[2,4,5]', NULL, 2, 2);
 
 -- Team
 CREATE TABLE Team (id, Name, Country, Team_name, Active);
