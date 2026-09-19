@@ -157,8 +157,8 @@ CREATE TABLE Publication (id, A, B, C);
 
 -- Submission
 CREATE TABLE Submission (id, Period, Team, Team_members, Date_of_completion, Submission_name, Link_to_Submission, A_Completed, B_completed, Communities, Partners, B1, B2);
-INSERT INTO Submission VALUES (1, 1, 1, NULL, 1789430400, '2026 - Semester 1 - Test Team', 'Open Record http://localhost:47478/o/docs/jrP3kqTf6nSB/MEAL3-flip-test/p/37#a1.s232.r1', 0, 0, '[1,2,3,4]', NULL, 1, 0);
-INSERT INTO Submission VALUES (2, 2, 1, NULL, 1789430400, '2026 - Semester 2 - Test Team', 'Open Record http://localhost:47478/o/docs/jrP3kqTf6nSB/MEAL3-flip-test/p/37#a1.s232.r2', 0, 0, '[2,4,5]', NULL, 2, 0);
+INSERT INTO Submission VALUES (1, 1, 1, NULL, 1789430400, '2026 - Semester 1 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r1', 0, 0, '[1,2,3,4]', NULL, 1, 0);
+INSERT INTO Submission VALUES (2, 2, 1, NULL, 1789430400, '2026 - Semester 2 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r2', 0, 0, '[2,4,5]', NULL, 2, 0);
 
 -- Team
 CREATE TABLE Team (id, Name, Country, Team_name, Active);
