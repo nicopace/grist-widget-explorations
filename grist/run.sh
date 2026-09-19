@@ -28,58 +28,84 @@ DOCID_FILE="$DATA_DIR/DOCID"
 API="http://localhost:$PORT/api"
 API_KEY="${GRIST_API_KEY:-gristfpp-local-dev-key}"
 SESSION_SECRET="${GRIST_SESSION_SECRET:-gristfpp-local-session-secret}"
+DEFAULT_EMAIL="${GRIST_DEFAULT_EMAIL:-dev@localhost}"
 ROOT="http://localhost:$PORT"
 
 die() { echo "error: $*" >&2; exit 1; }
 ensure_docker() { docker info >/dev/null 2>&1 || die "Docker daemon not running. Start Docker and retry."; }
 running() { docker inspect -f '{{.State.Running}}' "$NAME" 2>/dev/null | grep -q true; }
 
-# Give the default local user a known API key directly in the home DB.
+# Give the local owner a known API key directly in the home DB, before the server
+# starts (the server caches users at boot, so the write must precede startup).
 # This dev server is single-user and only bound to localhost, so it's fine.
 ensure_api_key() {
-  local tmp; tmp="$(mktemp -d)"
-  docker cp "$NAME:/persist/home.sqlite3" "$tmp/home.sqlite3" >/dev/null 2>&1 || { rm -rf "$tmp"; return 0; }
-  python3 - "$tmp/home.sqlite3" "$API_KEY" <<'PY'
+  # home.sqlite3 is on the host bind mount, so edit it directly (no docker cp).
+  [ -f "$DATA_DIR/home.sqlite3" ] || return 0
+  python3 - "$DATA_DIR/home.sqlite3" "$API_KEY" "$DEFAULT_EMAIL" <<'PY'
 import sqlite3, sys
-db, key = sys.argv[1], sys.argv[2]
+db, key, email = sys.argv[1], sys.argv[2], sys.argv[3]
 con = sqlite3.connect(db)
-# The local owner is the non-system login user (not anon/preview/everyone/support).
-row = con.execute("""SELECT u.id FROM users u JOIN logins l ON l.user_id=u.id
-                     WHERE u.type='login' AND l.email NOT IN
-                     ('anon@getgrist.com','thumbnail@getgrist.com','everyone@getgrist.com','support@getgrist.com')
-                     ORDER BY u.id LIMIT 1""").fetchone()
-if row:
-    con.execute("UPDATE users SET api_key=? WHERE id=?", (key, row[0]))
-    con.commit()
-    print("api key set for user id", row[0])
+# Target the configured default login, creating the user row if the bootstrap
+# hasn't produced it yet. This is what the server authenticates as.
+row = con.execute("SELECT user_id FROM logins WHERE email=?", (email,)).fetchone()
+if row is None:
+    cur = con.execute("INSERT INTO users (name, type) VALUES (?, 'login')", ("You",))
+    uid = cur.lastrowid
+    con.execute("INSERT INTO logins (email, user_id, display_email) VALUES (?,?,?)",
+                (email, uid, email))
 else:
-    print("no local user found (will retry after first browser login)")
+    uid = row[0]
+con.execute("UPDATE users SET api_key=? WHERE id=?", (key, uid))
+con.commit()
+print(f"api key set for {email} (user id {uid})")
 PY
-  docker cp "$tmp/home.sqlite3" "$NAME:/persist/home.sqlite3" >/dev/null 2>&1 || true
-  rm -rf "$tmp"
 }
 
+# Start the server. Grist caches users at boot, so the API key can only take
+# effect on a following start: on first run we start, set the key on the host
+# bind-mounted home DB, then restart. Everything after that is a plain start.
 cmd_start() {
   ensure_docker
   mkdir -p "$DATA_DIR"
   if running; then echo "already running: $NAME on :$PORT"; return 0; fi
+  local first_run=false
+  [ -f "$DATA_DIR/home.sqlite3" ] || first_run=true
+
+  _launch
+  if $first_run; then
+    echo "first run: creating home database…"
+    _wait_http
+    ensure_api_key
+    echo "restarting to apply API key…"
+    _launch   # restart so the server picks up the new key
+  fi
+  _wait_http
+  echo "started $NAME on $ROOT  (data: $DATA_DIR)"
+}
+
+_launch() {
   docker rm -f "$NAME" >/dev/null 2>&1 || true
+  # Run as the host user so bind-mounted files under $DATA_DIR stay writable by
+  # the server (otherwise root-owned files cause SQLITE_READONLY).
   docker run -d --name "$NAME" \
+    --user "$(id -u):$(id -g)" \
     -p "$PORT:8484" \
     -v "$DATA_DIR:/persist" \
     -e GRIST_SESSION_SECRET="$SESSION_SECRET" \
-    -e GRIST_DEFAULT_EMAIL="dev@localhost" \
+    -e GRIST_DEFAULT_EMAIL="$DEFAULT_EMAIL" \
     -e GRIST_IN_SERVICE=true \
     -e GRIST_ANON_PLAYGROUND=true \
     -e GRIST_INST_DIR=/persist \
     "$IMAGE" >/dev/null
-  echo "started $NAME on $ROOT  (data: $DATA_DIR)"
+}
+
+_wait_http() {
   printf "waiting for server"
-  for _ in $(seq 1 60); do
-    if curl -sf -o /dev/null "$ROOT/"; then echo " ok"; break; fi
+  for _ in $(seq 1 90); do
+    if curl -sf -o /dev/null "$ROOT/"; then echo " ok"; return 0; fi
     printf "."; sleep 1
   done
-  ensure_api_key
+  echo; die "server did not come up; see: $0 logs"
 }
 
 cmd_stop()  { ensure_docker; docker rm -f "$NAME" >/dev/null 2>&1 && echo "stopped $NAME" || echo "not running"; }
