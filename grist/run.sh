@@ -113,14 +113,31 @@ cmd_logs()  { ensure_docker; docker logs -f "$NAME"; }
 cmd_shell() { ensure_docker; docker exec -it "$NAME" bash; }
 cmd_status(){ ensure_docker; running && echo "running on $ROOT" || echo "not running"; }
 
+# Resolve the workspace to put the imported doc in (the local owner's Home).
+# Requires the API key set during `start`.
+resolve_workspace() {
+  local org ws
+  org="$(curl -sf -H "Authorization: Bearer $API_KEY" "$API/orgs" \
+    | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['id'] if d else '')")" || return 1
+  [ -n "$org" ] || return 1
+  ws="$(curl -sf -H "Authorization: Bearer $API_KEY" "$API/orgs/$org/workspaces" \
+    | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['id'] if d else '')")" || return 1
+  printf '%s' "$ws"
+}
+
 cmd_import() {
   ensure_docker
   [ -f "$DOC_FILE" ] || die "missing $DOC_FILE"
+  local ws; ws="$(resolve_workspace)" || true
+  [ -n "$ws" ] || die "could not resolve a workspace (is the API key set? try: $0 restart)"
+  # workspaceId makes Grist save the doc into Home, so it shows up in the UI.
+  # Without it, the import creates an unsaved doc only reachable by URL.
   local out; out="$(curl -sf -X POST -H "Authorization: Bearer $API_KEY" \
-      -F "upload=@$DOC_FILE" "$API/docs")" || die "import failed (is the API key set? try: $0 restart)"
+      -F "upload=@$DOC_FILE" -F "workspaceId=$ws" -F "documentName=${GRIST_DOC_NAME:-meal}" \
+      "$API/docs")" || die "import failed (is the API key set? try: $0 restart)"
   local doc; doc="$(printf '%s' "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d if isinstance(d,str) else d.get('id',''))")"
   mkdir -p "$DATA_DIR"; printf '%s' "$doc" > "$DOCID_FILE"
-  echo "imported -> docId: $doc"
+  echo "imported -> docId: $doc (workspace $ws)"
   echo "open in browser: $ROOT/o/docs/$doc"
 }
 
