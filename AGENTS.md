@@ -83,13 +83,15 @@ git diff grist/snapshot.sql
 
 The flip means junction rows (and their B1/B2 parent records) cannot be created by
 formulas. So a brand-new submission shows an empty checkbox grid until its rows
-exist. This is handled by the **"Community matrices" button widget** on the
-`Submissions` page (`pending-rows.html`): it adds the missing B1 record, B2 record,
-and one junction row per community, for every submission — fully inside Grist via
-the plugin API. Idempotent; existing rows are untouched.
+exist. This is handled by the **auto-bootstrap widget** (`pending-rows.html`), a
+small strip on the left of both the `B1. Work on the ground` and `B2. Threat`
+pages. It runs automatically on page load — no button, no manual action — and adds
+the missing B1/B2 record and one junction row per community for every submission,
+via the plugin API. Idempotent; existing rows are untouched. It is scoped per page
+through the widget URL (`?scope=b1` on B1, `?scope=b2` on B2).
 
-- After adding a new submission and setting its communities, click **Add pending
-  rows** once on the Submissions page.
+- After adding a new submission and setting its communities, just open the B1 (or
+  B2) page — the widget shows `+N` briefly while it creates the rows, then `✓`.
 - There is also a scripted equivalent (`./grist/run.sh bootstrap`, i.e.
   `python3 grist/sync.py bootstrap`) kept as a fallback/verification tool — not
   part of the normal workflow.

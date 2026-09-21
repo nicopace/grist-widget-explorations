@@ -2,34 +2,35 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Pending rows — B1/B2 bootstrap</title>
+<title>Pending rows (auto-bootstrap)</title>
 <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
 <style>
-  html, body { margin: 0; font-family: -apple-system, "Segoe UI", sans-serif; background: #fff; color: #1a2333; }
-  #bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; font-size: 13px; flex-wrap: wrap; }
-  #title { font-weight: 700; }
-  #count { color: #5b6478; }
-  #count.pending { color: #b42318; font-weight: 600; }
-  #btn { font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid #157f3d; background: #157f3d; color: #fff; cursor: pointer; font-weight: 600; }
-  #btn:hover:not(:disabled) { background: #0f6b32; }
-  #btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  #status { color: #5b6478; margin-left: auto; }
+  html, body { margin: 0; height: 100%; font-family: -apple-system, "Segoe UI", sans-serif; background: #fff; color: #1a2333; }
+  #wrap { height: 100vh; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 6px; box-sizing: border-box; }
+  #status { font-size: 12px; font-weight: 600; white-space: nowrap; }
+  #status.work { color: #5b6478; }
   #status.ok { color: #157f3d; }
-  #status.err { color: #b42318; font-weight: 600; }
+  #status.err { color: #b42318; }
+  #dot { width: 8px; height: 8px; border-radius: 50%; background: #cfd5e1; flex: 0 0 auto; }
+  #dot.ok { background: #157f3d; }
+  #dot.err { background: #b42318; }
+  #dot.work { background: #fbbf24; }
 </style>
 </head>
 <body>
-<div id="bar">
-  <span id="title">Community matrices</span>
-  <span id="count">checking…</span>
-  <button id="btn" disabled>Add pending rows</button>
-  <span id="status"></span>
+<div id="wrap" title="Auto-creates missing B1/B2 rows">
+  <span id="dot"></span>
+  <span id="status">…</span>
 </div>
 <script>
-  // Global bootstrap: ensure every submission has a B1 record, a B2 record, and
-  // one junction row per community in each of B1_Community_Check and
-  // B2_Community_Check. Runs entirely inside Grist via the plugin API — no
-  // external step. Idempotent: existing rows are left alone.
+  // Auto-bootstrap widget. On load it ensures every submission has the rows the
+  // junction-grid needs, then reports. No button — runs with no manual action.
+  // Scope is chosen per page via the widget URL: ?scope=b1 or ?scope=b2 (default all).
+  var SCOPE = (function () {
+    var m = /[?&]scope=([a-z0-9]+)/i.exec(location.search);
+    return m ? m[1].toLowerCase() : 'all';
+  })();
+
   var TABLES = {
     sub: 'Submission',
     b1: 'B1_Work_on_the_ground',
@@ -38,8 +39,7 @@
     b2j: 'B2_Community_Check',
   };
   var state = { subs: [], b1s: [], b2s: [], b1j: [], b2j: [] };
-  var countEl = document.getElementById('count');
-  var btn = document.getElementById('btn');
+  var dot = document.getElementById('dot');
   var statusEl = document.getElementById('status');
 
   function V(v) { return Array.isArray(v) ? v[v.length - 1] : v; }
@@ -61,7 +61,11 @@
     }
     return out;
   }
-  function status(msg, cls) { statusEl.textContent = msg; statusEl.className = cls || ''; }
+  function set(cls, txt) {
+    dot.className = cls;
+    statusEl.className = cls;
+    statusEl.textContent = txt;
+  }
 
   function fetchAll() {
     return Promise.all([
@@ -86,66 +90,48 @@
     var b1j_keys = {}, b2j_keys = {};
     state.b1j.forEach(function (r) { b1j_keys[Number(normId(r.B1)) + ':' + Number(normId(r.Community))] = 1; });
     state.b2j.forEach(function (r) { b2j_keys[Number(normId(r.B2)) + ':' + Number(normId(r.Community))] = 1; });
-    var parents = 0, junRows = 0;
+    var parents = 0, jun = 0;
     state.subs.forEach(function (s) {
       var sid = s.id, comms = asList(s.Communities);
-      if (!b1_by_sub[sid]) parents++;
-      if (!b2_by_sub[sid]) parents++;
+      if ((SCOPE === 'all' || SCOPE === 'b1') && !b1_by_sub[sid]) parents++;
+      if ((SCOPE === 'all' || SCOPE === 'b2') && !b2_by_sub[sid]) parents++;
       var b1id = b1_by_sub[sid], b2id = b2_by_sub[sid];
       comms.forEach(function (c) {
-        if (b1id && !b1j_keys[b1id + ':' + c]) junRows++;
-        if (b2id && !b2j_keys[b2id + ':' + c]) junRows++;
+        if ((SCOPE === 'all' || SCOPE === 'b1') && b1id && !b1j_keys[b1id + ':' + c]) jun++;
+        if ((SCOPE === 'all' || SCOPE === 'b2') && b2id && !b2j_keys[b2id + ':' + c]) jun++;
       });
     });
-    return { parents: parents, junRows: junRows, total: parents + junRows,
+    return { parents: parents, jun: jun, total: parents + jun,
              b1_by_sub: b1_by_sub, b2_by_sub: b2_by_sub, b1j_keys: b1j_keys, b2j_keys: b2j_keys };
   }
 
-  function render() {
-    var a = analyze();
-    if (a.total === 0) {
-      countEl.textContent = 'All up to date';
-      countEl.className = '';
-      btn.disabled = true;
-      btn.textContent = 'Add pending rows';
-    } else {
-      var parts = [];
-      if (a.parents) parts.push(a.parents + ' B1/B2 record' + (a.parents > 1 ? 's' : ''));
-      if (a.junRows) parts.push(a.junRows + ' junction row' + (a.junRows > 1 ? 's' : ''));
-      countEl.textContent = parts.join(', ') + ' pending';
-      countEl.className = 'pending';
-      btn.disabled = false;
-      btn.textContent = 'Add pending rows (' + a.total + ')';
-    }
-  }
-
-  function addPending() {
-    btn.disabled = true;
-    status('working…');
-    fetchAll().then(function () {
+  function bootstrap() {
+    set('work', '…');
+    return fetchAll().then(function () {
       var a = analyze();
 
-      // 1. create missing parent records (B1 + B2)
       var parentActions = [];
       state.subs.forEach(function (s) {
-        if (!a.b1_by_sub[s.id]) parentActions.push(['AddRecord', TABLES.b1, null, { Submission: s.id }]);
-        if (!a.b2_by_sub[s.id]) parentActions.push(['AddRecord', TABLES.b2, null, { Submission_B2: s.id }]);
+        if ((SCOPE === 'all' || SCOPE === 'b1') && !a.b1_by_sub[s.id]) parentActions.push(['AddRecord', TABLES.b1, null, { Submission: s.id }]);
+        if ((SCOPE === 'all' || SCOPE === 'b2') && !a.b2_by_sub[s.id]) parentActions.push(['AddRecord', TABLES.b2, null, { Submission_B2: s.id }]);
       });
 
       var p = Promise.resolve();
-      if (parentActions.length) {
-        p = p.then(function () { return grist.docApi.applyUserActions(parentActions); });
-      }
-      // 2. re-fetch so new parent ids are known, then set backlinks + junction rows
+      if (parentActions.length) p = grist.docApi.applyUserActions(parentActions);
+
       return p.then(fetchAll).then(function () {
         var a2 = analyze();
 
         var backlinks = [];
         state.subs.forEach(function (s) {
-          var curB1 = Number(normId(s.B1)) || 0;
-          if (a2.b1_by_sub[s.id] && curB1 !== a2.b1_by_sub[s.id]) backlinks.push(['UpdateRecord', TABLES.sub, s.id, { B1: a2.b1_by_sub[s.id] }]);
-          var curB2 = Number(normId(s.B2)) || 0;
-          if (a2.b2_by_sub[s.id] && curB2 !== a2.b2_by_sub[s.id]) backlinks.push(['UpdateRecord', TABLES.sub, s.id, { B2: a2.b2_by_sub[s.id] }]);
+          if (SCOPE === 'all' || SCOPE === 'b1') {
+            var curB1 = Number(normId(s.B1)) || 0;
+            if (a2.b1_by_sub[s.id] && curB1 !== a2.b1_by_sub[s.id]) backlinks.push(['UpdateRecord', TABLES.sub, s.id, { B1: a2.b1_by_sub[s.id] }]);
+          }
+          if (SCOPE === 'all' || SCOPE === 'b2') {
+            var curB2 = Number(normId(s.B2)) || 0;
+            if (a2.b2_by_sub[s.id] && curB2 !== a2.b2_by_sub[s.id]) backlinks.push(['UpdateRecord', TABLES.sub, s.id, { B2: a2.b2_by_sub[s.id] }]);
+          }
         });
 
         var junActions = [];
@@ -153,11 +139,11 @@
           var sid = s.id, comms = asList(s.Communities);
           var b1id = a2.b1_by_sub[sid], b2id = a2.b2_by_sub[sid];
           comms.forEach(function (c) {
-            if (b1id && !a2.b1j_keys[b1id + ':' + c]) {
+            if ((SCOPE === 'all' || SCOPE === 'b1') && b1id && !a2.b1j_keys[b1id + ':' + c]) {
               junActions.push(['AddRecord', TABLES.b1j, null, { B1: b1id, Community: c, Submission: sid }]);
               a2.b1j_keys[b1id + ':' + c] = 1;
             }
-            if (b2id && !a2.b2j_keys[b2id + ':' + c]) {
+            if ((SCOPE === 'all' || SCOPE === 'b2') && b2id && !a2.b2j_keys[b2id + ':' + c]) {
               junActions.push(['AddRecord', TABLES.b2j, null, { B2: b2id, Community: c, Submission: sid }]);
               a2.b2j_keys[b2id + ':' + c] = 1;
             }
@@ -165,25 +151,22 @@
         });
 
         var actions = backlinks.concat(junActions);
-        var p2 = Promise.resolve();
-        if (actions.length) p2 = grist.docApi.applyUserActions(actions);
-        return p2.then(fetchAll);
+        var q = Promise.resolve();
+        if (actions.length) q = grist.docApi.applyUserActions(actions);
+        return q.then(fetchAll).then(function () {
+          var a3 = analyze();
+          if (a3.total > 0) { set('err', '!' + a3.total); }
+          else if (actions.length) { set('ok', '+' + actions.length); }
+          else { set('ok', '✓'); }
+        });
       });
-    }).then(function () {
-      render();
-      status('Done.', 'ok');
-      setTimeout(function () { status(''); }, 3000);
     }).catch(function (e) {
-      btn.disabled = false;
-      status('Error: ' + ((e && e.message) || e), 'err');
+      set('err', '! ' + ((e && e.message) || e));
     });
   }
 
-  btn.addEventListener('click', addPending);
   grist.ready({ requiredAccess: 'full' });
-  fetchAll().then(render).catch(function (e) {
-    status('Error: ' + ((e && e.message) || e), 'err');
-  });
+  bootstrap();
 </script>
 </body>
 </html>
