@@ -56,9 +56,12 @@ the goal is maximum use of built-in Grist features and minimum external code.
 
 ### Hosting
 
-Widgets are served locally with `python3 -m http.server 8123 --directory /Users/nico/github/grist-fpp`
+Widgets live in `widgets/` (see `widgets/README.md` for a per-widget guide). They
+are served locally with `python3 -m http.server 8123 --directory /Users/nico/github/grist-fpp`
 and wired into `_grist_Views_section.options` via REST `PATCH` (the MCP page tools
-cannot write widget URLs). Bump `?v=N` on the URL to defeat iframe caching.
+cannot write widget URLs). Widget URLs therefore look like
+`http://localhost:8123/widgets/b1/pending-rows.html?v=3&scope=b1` — bump `?v=N`
+after editing to defeat iframe caching.
 
 ## Standard workflow: repo-local Grist server + git-backed doc
 
@@ -83,9 +86,9 @@ git diff grist/snapshot.sql
 
 The flip means junction rows (and their B1/B2 parent records) cannot be created by
 formulas. So a brand-new submission shows an empty checkbox grid until its rows
-exist. This is handled by the **auto-bootstrap widget** (`pending-rows.html`), a
-small strip on the left of both the `B1. Work on the ground` and `B2. Threat`
-pages. It runs automatically on page load — no button, no manual action — and adds
+exist. This is handled by the **auto-bootstrap widget**
+(`widgets/b1/pending-rows.html`), a small strip on the left of both the
+`B1. Work on the ground` and `B2. Threat` pages. It runs automatically on page load — no button, no manual action — and adds
 the missing B1/B2 record and one junction row per community for every submission,
 via the plugin API. Idempotent; existing rows are untouched. It is scoped per page
 through the widget URL (`?scope=b1` on B1, `?scope=b2` on B2).

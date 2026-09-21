@@ -16,6 +16,7 @@ INSERT INTO B1_Community_Check VALUES (9, 3, 6, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 INSERT INTO B1_Community_Check VALUES (10, 3, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[1]', 0);
 INSERT INTO B1_Community_Check VALUES (11, 3, 5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[5]', 0);
 INSERT INTO B1_Community_Check VALUES (12, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[3]', 0);
+INSERT INTO B1_Community_Check VALUES (13, 3, 7, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[7]', 0);
 
 -- B1_Work_on_the_ground
 CREATE TABLE B1_Work_on_the_ground (id, Community_self_governance, Territorial_management, Revitalisation_of_culture_intergenerational_transmission_of_knowledge, Mobilisation_against_threats, Conflict_resolution_impacting_on_a_significant_portion_of_the_community, Supporting_land_claims, Community_conservation_or_restoration, Livelihoods_initiatives, Gender, Mapping, Supporting_community_participation_in_national_processes, Supporting_community_participation_in_international_processes, Food_systems, Other, Submission, Submission_Period);
@@ -37,6 +38,7 @@ INSERT INTO B2_Community_Check VALUES (9, 3, 6, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 INSERT INTO B2_Community_Check VALUES (10, 3, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 INSERT INTO B2_Community_Check VALUES (11, 3, 5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 INSERT INTO B2_Community_Check VALUES (12, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (13, 3, 7, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 
 -- B2_Threat
 CREATE TABLE B2_Threat (id, Oil_palm, Forestry_concessions, Minerals_and_energy, Carbon_and_biodiversity_markets, Conservation_areas, Other_industrial_agriculture, Other_local_small_scale_agriculture, Other_encroachment_by_neighbours_or_external_parties, Armed_conflict_actors, Infrastructure_roads_railways_energy_, Submission_B2);
@@ -76,6 +78,7 @@ INSERT INTO Community VALUES (3, 'Test Community Gamma', 0, 0, '', 0, NULL, 0, '
 INSERT INTO Community VALUES (4, 'Test Community Delta', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[1,2]');
 INSERT INTO Community VALUES (5, 'Test Community Echo', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[2,3]');
 INSERT INTO Community VALUES (6, 'Communidad nueva', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[2,3]');
+INSERT INTO Community VALUES (7, 'Otra nueva', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[3]');
 
 -- Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth
 CREATE TABLE Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth (id, Name, Population, Latitude, Map_Link, Hectares, Partner, Longitude, Population_men, Population_women, Population_other, Population_youth, Country, Map_iframe, Leadership_men, Leadership_women, Leadership_other, Leadership_youth, Leadership_elder, group, count);
@@ -85,6 +88,7 @@ INSERT INTO Community_summary_Country_Hectares_Latitude_Leadership_elder_Leaders
 INSERT INTO Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth VALUES (4, 'Test Community Delta', 0, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', 0, 0, 0, 0, 0, '[4]', 1);
 INSERT INTO Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth VALUES (5, 'Test Community Echo', 0, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', 0, 0, 0, 0, 0, '[5]', 1);
 INSERT INTO Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth VALUES (6, 'Communidad nueva', 0, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', 0, 0, 0, 0, 0, '[6]', 1);
+INSERT INTO Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth VALUES (7, 'Otra nueva', 0, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', 0, 0, 0, 0, 0, '[7]', 1);
 
 -- Country
 CREATE TABLE Country (id, Partners, Allies, Activities, Threats, Cases_and_Complaints, Name, Community);
@@ -188,7 +192,7 @@ CREATE TABLE Publication (id, A, B, C);
 CREATE TABLE Submission (id, Period, Team, Team_members, Date_of_completion, Submission_name, Link_to_Submission, A_Completed, B_completed, Communities, Partners, B1, B2, B5);
 INSERT INTO Submission VALUES (1, 1, 1, NULL, 1789948800, '2026 - Semester 1 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r1', 1, 0, '[1,2,3,4]', NULL, 1, 1, '{"ops":[{"insert":"\n"}]}');
 INSERT INTO Submission VALUES (2, 2, 1, NULL, 1789948800, '2026 - Semester 2 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r2', 0, 0, '[2,4,5,6]', NULL, 2, 2, '{"ops":[{"insert":"\n"}]}');
-INSERT INTO Submission VALUES (3, 3, 1, NULL, 1789948800, '2027 - Semester 1 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r3', 0, 0, '[6,1,5,3]', '[1]', 3, 3, '');
+INSERT INTO Submission VALUES (3, 3, 1, NULL, 1789948800, '2027 - Semester 1 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r3', 0, 0, '[6,1,5,3,7]', '[1]', 3, 3, '');
 
 -- Team
 CREATE TABLE Team (id, Name, Country, Team_name, Active);
