@@ -1,5 +1,6 @@
 # Grist FPP — project notes for agents
 
+
 ## Strategy: native junction table as the editable truth (a.k.a. "the flip")
 
 Use this pattern for many-to-many matrices (e.g. communities × work categories) when
