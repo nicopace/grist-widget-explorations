@@ -157,6 +157,14 @@ cmd_export() {
   python3 "$HERE/sync.py" dump --file "$DOC_FILE" >/dev/null && echo "refreshed grist/snapshot.sql"
 }
 
+cmd_bootstrap() {
+  ensure_docker
+  local doc="${1:-}"; [ -n "$doc" ] || doc="$(cat "$DOCID_FILE" 2>/dev/null || true)"
+  [ -n "$doc" ] || die "usage: $0 bootstrap [docId]   (or run: $0 import first)"
+  echo "bootstrapping doc $doc (B1/B2 records + junction rows for every submission)…"
+  python3 "$HERE/sync.py" bootstrap --doc "$doc" --base "http://localhost:$PORT" --key "$API_KEY"
+}
+
 case "${1:-status}" in
   start)   cmd_start ;;
   stop)    cmd_stop ;;
@@ -167,5 +175,6 @@ case "${1:-status}" in
   import)  cmd_import ;;
   open)    cmd_open ;;
   export)  shift; cmd_export "$@" ;;
-  *) die "unknown command: $1 (start|stop|restart|status|logs|shell|import|open|export)" ;;
+  bootstrap) shift; cmd_bootstrap "$@" ;;
+  *) die "unknown command: $1 (start|stop|restart|status|logs|shell|import|open|export|bootstrap)" ;;
 esac

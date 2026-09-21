@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Grist doc snapshot helper for the repo.
+"""Grist doc snapshot + bootstrap helper for the repo.
 
 Keeps a Git-tracked, empty-but-structural Grist document plus a diffable SQL
 snapshot, so we iterate on a file in version control instead of a live user doc.
@@ -8,11 +8,17 @@ Usage:
   python3 grist/sync.py pull  [--doc DOCID]   # server -> grist/*.grist + grist/snapshot.sql
   python3 grist/sync.py dump  [--file PATH]   # local .grist -> grist/snapshot.sql
   python3 grist/sync.py diff                  # git diff of snapshot.sql
+  python3 grist/sync.py bootstrap [--doc ID] [--base URL] [--key KEY]
+      # create missing B1/B2 records + junction rows for every submission
 
 Auth: GRIST_API_KEY env var, else the key in ../opencode.json.
 Base URL: GRIST_BASE_URL env var, default http://localhost:47478.
 Byte-identity: after a pull, re-uploading the file via `POST .../{dstDocId}/replace`
 or importing it on create reproduces the doc exactly.
+
+The "flip" pattern (junction table as truth) means each submission needs a B1/B2
+parent record and one junction row per community, but formulas cannot create rows.
+`bootstrap` is the glue that fills those in for any submission missing them.
 """
 import argparse
 import json
@@ -39,6 +45,85 @@ def load_config():
             key = key or env.get("GRIST_API_KEY")
             base = base or env.get("GRIST_BASE_URL")
     return (base or "http://localhost:47478"), key
+
+
+def aslist(v):
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return [int(x) for x in (v[1:] if v and v[0] == "L" else v)]
+    return [int(v)]
+
+
+def _request(method, url, key, payload=None):
+    data = None
+    headers = {"Authorization": f"Bearer {key}"}
+    if payload is not None:
+        data = json.dumps(payload).encode()
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read())
+
+
+def api_get(base, key, doc, path):
+    return _request("GET", f"{base}/api/docs/{doc}{path}", key)
+
+
+def api_apply(base, key, doc, actions):
+    return _request("POST", f"{base}/api/docs/{doc}/apply", key, actions)
+
+
+def bootstrap(doc, base, key):
+    """Ensure every submission has a B1 record, B2 record, and junction rows."""
+    subs = api_get(base, key, doc, "/tables/Submission/records")["records"]
+    b1s = api_get(base, key, doc, "/tables/B1_Work_on_the_ground/records")["records"]
+    b2s = api_get(base, key, doc, "/tables/B2_Threat/records")["records"]
+    b1j = api_get(base, key, doc, "/tables/B1_Community_Check/records")["records"]
+    b2j = api_get(base, key, doc, "/tables/B2_Community_Check/records")["records"]
+
+    b1_by_sub = {r["fields"].get("Submission"): r["id"] for r in b1s}
+    b2_by_sub = {r["fields"].get("Submission_B2"): r["id"] for r in b2s}
+    b1j_keys = {(r["fields"].get("B1"), r["fields"].get("Community")) for r in b1j}
+    b2j_keys = {(r["fields"].get("B2"), r["fields"].get("Community")) for r in b2j}
+
+    for s in subs:
+        sid = s["id"]
+        comms = aslist(s["fields"].get("Communities"))
+        name = s["fields"].get("Submission_name") or f"#{sid}"
+        created = []
+
+        if sid not in b1_by_sub:
+            b1id = api_apply(base, key, doc, [["AddRecord", "B1_Work_on_the_ground", None, {"Submission": sid}]])["retValues"][0]
+            b1_by_sub[sid] = b1id
+            api_apply(base, key, doc, [["UpdateRecord", "Submission", sid, {"B1": b1id}]])
+            created.append(f"B1 record #{b1id}")
+        b1id = b1_by_sub[sid]
+
+        if sid not in b2_by_sub:
+            b2id = api_apply(base, key, doc, [["AddRecord", "B2_Threat", None, {"Submission_B2": sid}]])["retValues"][0]
+            b2_by_sub[sid] = b2id
+            api_apply(base, key, doc, [["UpdateRecord", "Submission", sid, {"B2": b2id}]])
+            created.append(f"B2 record #{b2id}")
+        b2id = b2_by_sub[sid]
+
+        missing_b1 = [c for c in comms if (b1id, c) not in b1j_keys]
+        if missing_b1:
+            api_apply(base, key, doc, [
+                ["AddRecord", "B1_Community_Check", None, {"B1": b1id, "Community": c, "Submission": sid}]
+                for c in missing_b1])
+            b1j_keys |= {(b1id, c) for c in missing_b1}
+            created.append(f"{len(missing_b1)} B1 junction rows")
+
+        missing_b2 = [c for c in comms if (b2id, c) not in b2j_keys]
+        if missing_b2:
+            api_apply(base, key, doc, [
+                ["AddRecord", "B2_Community_Check", None, {"B2": b2id, "Community": c, "Submission": sid}]
+                for c in missing_b2])
+            b2j_keys |= {(b2id, c) for c in missing_b2}
+            created.append(f"{len(missing_b2)} B2 junction rows")
+
+        print(f"  {name} (id {sid}): " + (", ".join(created) if created else "already complete"))
 
 
 def pull(doc_id, out_path):
@@ -91,15 +176,24 @@ def dump(grist_path, out_path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("action", choices=["pull", "dump", "diff"])
+    ap.add_argument("action", choices=["pull", "dump", "diff", "bootstrap"])
     ap.add_argument("--doc", default=FORK_DOC)
     ap.add_argument("--file", default=str(DEFAULT_GRISt))
+    ap.add_argument("--base", default=None)
+    ap.add_argument("--key", default=None)
     a = ap.parse_args()
     if a.action == "pull":
         pull(a.doc, DEFAULT_GRISt)
         dump(DEFAULT_GRISt, SNAPSHOT)
     elif a.action == "dump":
         dump(pathlib.Path(a.file), SNAPSHOT)
+    elif a.action == "bootstrap":
+        base, key = load_config()
+        base = a.base or base
+        key = a.key or key
+        if not key:
+            sys.exit("No GRIST_API_KEY found (env, --key, or ../opencode.json)")
+        bootstrap(a.doc, base, key)
     else:
         subprocess.run(["git", "-C", str(ROOT.parent), "diff", "--", str(SNAPSHOT.relative_to(ROOT.parent))])
 

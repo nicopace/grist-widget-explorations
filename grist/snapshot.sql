@@ -11,11 +11,16 @@ INSERT INTO B1_Community_Check VALUES (4, 1, 4, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0,
 INSERT INTO B1_Community_Check VALUES (5, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 'B1_Work_on_the_ground[2]:Community[2]', 0);
 INSERT INTO B1_Community_Check VALUES (6, 2, 4, 2, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 'B1_Work_on_the_ground[2]:Community[4]', 0);
 INSERT INTO B1_Community_Check VALUES (7, 2, 5, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 'B1_Work_on_the_ground[2]:Community[5]', 0);
+INSERT INTO B1_Community_Check VALUES (8, 2, 6, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[2]:Community[6]', 0);
+INSERT INTO B1_Community_Check VALUES (9, 3, 6, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[6]', 0);
+INSERT INTO B1_Community_Check VALUES (10, 3, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[1]', 0);
+INSERT INTO B1_Community_Check VALUES (11, 3, 5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[5]', 0);
 
 -- B1_Work_on_the_ground
 CREATE TABLE B1_Work_on_the_ground (id, Community_self_governance, Territorial_management, Revitalisation_of_culture_intergenerational_transmission_of_knowledge, Mobilisation_against_threats, Conflict_resolution_impacting_on_a_significant_portion_of_the_community, Supporting_land_claims, Community_conservation_or_restoration, Livelihoods_initiatives, Gender, Mapping, Supporting_community_participation_in_national_processes, Supporting_community_participation_in_international_processes, Food_systems, Other, Submission, Submission_Period);
 INSERT INTO B1_Work_on_the_ground VALUES (1, '[1,2,3]', '[1,2,3]', '[1,2,3]', NULL, '[1,2,3]', '[1,2,3,4]', '[4]', '[3]', '[2,4]', '[1,3]', NULL, NULL, '[1]', '', 1, '2026 - Semester 1 - Test Team');
 INSERT INTO B1_Work_on_the_ground VALUES (2, '[2]', '[2,4]', '[2]', NULL, NULL, NULL, NULL, NULL, '[4]', '[2,5]', NULL, NULL, NULL, '', 2, '2026 - Semester 2 - Test Team');
+INSERT INTO B1_Work_on_the_ground VALUES (3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', 3, '2027 - Semester 1 - Test Team');
 
 -- B2_Community_Check
 CREATE TABLE B2_Community_Check (id, B2, Community, Submission, Oil_palm, Forestry_concessions, Minerals_and_energy, Carbon_and_biodiversity_markets, Conservation_areas, Other_industrial_agriculture, Other_local_small_scale_agriculture, Other_encroachment_by_neighbours_or_external_parties, Armed_conflict_actors, Infrastructure_roads_railways_energy_, Key, Duplicate);
@@ -26,11 +31,16 @@ INSERT INTO B2_Community_Check VALUES (4, 1, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 INSERT INTO B2_Community_Check VALUES (5, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, '', '');
 INSERT INTO B2_Community_Check VALUES (6, 2, 4, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 INSERT INTO B2_Community_Check VALUES (7, 2, 5, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (8, 2, 6, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (9, 3, 6, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (10, 3, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (11, 3, 5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 
 -- B2_Threat
 CREATE TABLE B2_Threat (id, Oil_palm, Forestry_concessions, Minerals_and_energy, Carbon_and_biodiversity_markets, Conservation_areas, Other_industrial_agriculture, Other_local_small_scale_agriculture, Other_encroachment_by_neighbours_or_external_parties, Armed_conflict_actors, Infrastructure_roads_railways_energy_, Submission_B2);
 INSERT INTO B2_Threat VALUES (1, '[1,2]', '[1,2]', '[1,3]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1);
 INSERT INTO B2_Threat VALUES (2, '[2]', '[4]', '[5]', NULL, NULL, NULL, NULL, NULL, '[2]', NULL, 2);
+INSERT INTO B2_Threat VALUES (3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 3);
 
 -- B4_Participation_per_group
 CREATE TABLE B4_Participation_per_group (id, Submission, Women, Men, Transgender_other_gender_identities_if_applicable_, Youth, Elders);
@@ -58,11 +68,12 @@ CREATE TABLE C6_Publications_and_communications (id, Submission, Name, Link, Typ
 
 -- Community
 CREATE TABLE Community (id, Name, Population, Latitude, Is_Confidential, Hectares, Partner, Longitude, Map_Link, Population_men, Population_women, Population_other, Population_youth, Country, Leadership_men, Leadership_women, Leadership_other, Leadership_youth, Leadership_elder, Map_iframe, Submission);
-INSERT INTO Community VALUES (1, 'Test Community Alpha', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[1]');
+INSERT INTO Community VALUES (1, 'Test Community Alpha', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[1,3]');
 INSERT INTO Community VALUES (2, 'Test Community Beta', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[1,2]');
-INSERT INTO Community VALUES (3, 'Test Community Gamma', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[1]');
+INSERT INTO Community VALUES (3, 'Test Community Gamma', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[1,3]');
 INSERT INTO Community VALUES (4, 'Test Community Delta', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[1,2]');
-INSERT INTO Community VALUES (5, 'Test Community Echo', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[2]');
+INSERT INTO Community VALUES (5, 'Test Community Echo', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[2,3]');
+INSERT INTO Community VALUES (6, 'Communidad nueva', 0, 0, '', 0, NULL, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', '[2,3]');
 
 -- Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth
 CREATE TABLE Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth (id, Name, Population, Latitude, Map_Link, Hectares, Partner, Longitude, Population_men, Population_women, Population_other, Population_youth, Country, Map_iframe, Leadership_men, Leadership_women, Leadership_other, Leadership_youth, Leadership_elder, group, count);
@@ -71,6 +82,7 @@ INSERT INTO Community_summary_Country_Hectares_Latitude_Leadership_elder_Leaders
 INSERT INTO Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth VALUES (3, 'Test Community Gamma', 0, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', 0, 0, 0, 0, 0, '[3]', 1);
 INSERT INTO Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth VALUES (4, 'Test Community Delta', 0, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', 0, 0, 0, 0, 0, '[4]', 1);
 INSERT INTO Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth VALUES (5, 'Test Community Echo', 0, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', 0, 0, 0, 0, 0, '[5]', 1);
+INSERT INTO Community_summary_Country_Hectares_Latitude_Leadership_elder_Leadership_men_Leadership_other_Leadership_women_Leadership_youth_Longitude_Map_Link_Map_iframe_Name_Partner_Population_Population_men_Population_other_Population_women_Population_youth VALUES (6, 'Communidad nueva', 0, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, '<iframe style=''width: 100%; height: 100%; border: none; display: block;'' src=''''></iframe>', 0, 0, 0, 0, 0, '[6]', 1);
 
 -- Country
 CREATE TABLE Country (id, Partners, Allies, Activities, Threats, Cases_and_Complaints, Name, Community);
@@ -155,22 +167,26 @@ CREATE TABLE PageViews (id, Page, User, Viewed_At);
 
 -- Partner
 CREATE TABLE Partner (id, Name, Notes, Is_this_a_financial_partner_, if_financial_is_it_a_women_organization_, if_financial_is_youth_organization_, Submission);
+INSERT INTO Partner VALUES (1, 'New partner 1', '{"ops":[{"insert":"Notes\n"}]}', 1, 0, 1, '[3]');
 
 -- Partner_summary_Is_this_a_financial_partner__Name_Notes_if_financial_is_it_a_women_organization__if_financial_is_youth_organization_
 CREATE TABLE Partner_summary_Is_this_a_financial_partner__Name_Notes_if_financial_is_it_a_women_organization__if_financial_is_youth_organization_ (id, Name, Notes, Is_this_a_financial_partner_, if_financial_is_it_a_women_organization_, if_financial_is_youth_organization_, group, count);
+INSERT INTO Partner_summary_Is_this_a_financial_partner__Name_Notes_if_financial_is_it_a_women_organization__if_financial_is_youth_organization_ VALUES (8, 'New partner 1', '{"ops":[{"insert":"Notes\n"}]}', 1, 0, 1, '[1]', 1);
 
 -- Period
 CREATE TABLE Period (id, Name, Year, Half, Active);
 INSERT INTO Period VALUES (1, '2026 - Semester 1', 2026, '1', 1);
 INSERT INTO Period VALUES (2, '2026 - Semester 2', 2026, '2', 1);
+INSERT INTO Period VALUES (3, '2027 - Semester 1', 2027, '1', 1);
 
 -- Publication
 CREATE TABLE Publication (id, A, B, C);
 
 -- Submission
-CREATE TABLE Submission (id, Period, Team, Team_members, Date_of_completion, Submission_name, Link_to_Submission, A_Completed, B_completed, Communities, Partners, B1, B2);
-INSERT INTO Submission VALUES (1, 1, 1, NULL, 1789430400, '2026 - Semester 1 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r1', 0, 0, '[1,2,3,4]', NULL, 1, 1);
-INSERT INTO Submission VALUES (2, 2, 1, NULL, 1789430400, '2026 - Semester 2 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r2', 0, 0, '[2,4,5]', NULL, 2, 2);
+CREATE TABLE Submission (id, Period, Team, Team_members, Date_of_completion, Submission_name, Link_to_Submission, A_Completed, B_completed, Communities, Partners, B1, B2, B5);
+INSERT INTO Submission VALUES (1, 1, 1, NULL, 1789948800, '2026 - Semester 1 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r1', 1, 0, '[1,2,3,4]', NULL, 1, 1, '{"ops":[{"insert":"\n"}]}');
+INSERT INTO Submission VALUES (2, 2, 1, NULL, 1789948800, '2026 - Semester 2 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r2', 0, 0, '[2,4,5,6]', NULL, 2, 2, '{"ops":[{"insert":"\n"}]}');
+INSERT INTO Submission VALUES (3, 3, 1, NULL, 1789948800, '2027 - Semester 1 - Test Team', 'Open Record http://0.0.0.0:8484/o/docs/i9GFjQwy4o7A/meal/p/37#a1.s232.r3', 0, 0, '[6,1,5,3]', '[1]', 3, 3, '');
 
 -- Team
 CREATE TABLE Team (id, Name, Country, Team_name, Active);

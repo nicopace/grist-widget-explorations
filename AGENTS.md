@@ -79,3 +79,18 @@ git diff grist/snapshot.sql
   (written into the local home DB by `run.sh start`).
 - Only `export` touches tracked files, so browser edits stay untracked until reviewed.
 
+### Adding a new submission/period (in-document, no external step)
+
+The flip means junction rows (and their B1/B2 parent records) cannot be created by
+formulas. So a brand-new submission shows an empty checkbox grid until its rows
+exist. This is handled by the **"Community matrices" button widget** on the
+`Submissions` page (`pending-rows.html`): it adds the missing B1 record, B2 record,
+and one junction row per community, for every submission — fully inside Grist via
+the plugin API. Idempotent; existing rows are untouched.
+
+- After adding a new submission and setting its communities, click **Add pending
+  rows** once on the Submissions page.
+- There is also a scripted equivalent (`./grist/run.sh bootstrap`, i.e.
+  `python3 grist/sync.py bootstrap`) kept as a fallback/verification tool — not
+  part of the normal workflow.
+
