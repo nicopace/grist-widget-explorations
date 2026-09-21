@@ -15,6 +15,7 @@ INSERT INTO B1_Community_Check VALUES (8, 2, 6, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 INSERT INTO B1_Community_Check VALUES (9, 3, 6, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[6]', 0);
 INSERT INTO B1_Community_Check VALUES (10, 3, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[1]', 0);
 INSERT INTO B1_Community_Check VALUES (11, 3, 5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[5]', 0);
+INSERT INTO B1_Community_Check VALUES (12, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'B1_Work_on_the_ground[3]:Community[3]', 0);
 
 -- B1_Work_on_the_ground
 CREATE TABLE B1_Work_on_the_ground (id, Community_self_governance, Territorial_management, Revitalisation_of_culture_intergenerational_transmission_of_knowledge, Mobilisation_against_threats, Conflict_resolution_impacting_on_a_significant_portion_of_the_community, Supporting_land_claims, Community_conservation_or_restoration, Livelihoods_initiatives, Gender, Mapping, Supporting_community_participation_in_national_processes, Supporting_community_participation_in_international_processes, Food_systems, Other, Submission, Submission_Period);
@@ -35,6 +36,7 @@ INSERT INTO B2_Community_Check VALUES (8, 2, 6, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 INSERT INTO B2_Community_Check VALUES (9, 3, 6, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 INSERT INTO B2_Community_Check VALUES (10, 3, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 INSERT INTO B2_Community_Check VALUES (11, 3, 5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
+INSERT INTO B2_Community_Check VALUES (12, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '');
 
 -- B2_Threat
 CREATE TABLE B2_Threat (id, Oil_palm, Forestry_concessions, Minerals_and_energy, Carbon_and_biodiversity_markets, Conservation_areas, Other_industrial_agriculture, Other_local_small_scale_agriculture, Other_encroachment_by_neighbours_or_external_parties, Armed_conflict_actors, Infrastructure_roads_railways_energy_, Submission_B2);
